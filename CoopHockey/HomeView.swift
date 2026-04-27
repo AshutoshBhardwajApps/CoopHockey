@@ -140,7 +140,7 @@ struct HomeView: View {
             }
             .navigationBarHidden(true)
             .onAppear {
-                BGM.shared.play(volume: 0.20)
+                if settings.musicEnabled { BGM.shared.play(volume: 0.20) } else { BGM.shared.stop() }
                 showDifficulty = false
             }
         }
