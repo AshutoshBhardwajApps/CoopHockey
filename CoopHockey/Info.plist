@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- REPLACE with your real AdMob App ID from console.admob.com before shipping -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1033173712</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>We use this to show you ads that are more relevant to you.</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array/>
+</dict>
+</plist>
