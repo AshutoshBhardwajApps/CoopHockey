@@ -89,6 +89,8 @@
 		<dict><key>SKAdNetworkIdentifier</key><string>3rd42ekr43.skadnetwork</string></dict>
 		<dict><key>SKAdNetworkIdentifier</key><string>w9q455135z.skadnetwork</string></dict>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UTImportedTypeDeclarations</key>
 	<array/>
 </dict>
