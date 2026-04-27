@@ -14,7 +14,7 @@ final class AdManager: NSObject, ObservableObject {
     // REPLACE with your real interstitial unit ID from console.admob.com
     // Using Google's demo test ID below so test ads work immediately.
     // Real ID format: "ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX"
-    private let interstitialID = "ca-app-pub-3940256099942544/4411468910"
+    private let interstitialID = "ca-app-pub-2320635595451132/7068208518"
 
     private let minRoundsBetweenAds: Int = 1
     private let minGapSeconds: TimeInterval = 0

@@ -4,7 +4,7 @@
 <dict>
 	<!-- REPLACE with your real AdMob App ID from console.admob.com before shipping -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1033173712</string>
+	<string>ca-app-pub-2320635595451132~4298800289</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>We use this to show you ads that are more relevant to you.</string>
 	<key>SKAdNetworkItems</key>
