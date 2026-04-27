@@ -301,7 +301,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         body.friction = 0
         body.categoryBitMask    = Physics.wall
         body.collisionBitMask   = Physics.puck
-        body.contactTestBitMask = 0
+        body.contactTestBitMask = Physics.puck
         node.physicsBody = body
         addChild(node)
     }
@@ -314,7 +314,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         body.friction = 0
         body.categoryBitMask    = Physics.wall
         body.collisionBitMask   = Physics.puck
-        body.contactTestBitMask = 0
+        body.contactTestBitMask = Physics.puck
         node.physicsBody = body
         addChild(node)
     }
@@ -544,11 +544,23 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         if names.contains("goal_p1") { triggerGoal(by: 1) }
         else if names.contains("goal_p2") { triggerGoal(by: 2) }
 
+        let aIsWall = contact.bodyA.categoryBitMask == Physics.wall
+        let bIsWall = contact.bodyB.categoryBitMask == Physics.wall
+        let aIsMallet = contact.bodyA.categoryBitMask == Physics.mallet
+        let bIsMallet = contact.bodyB.categoryBitMask == Physics.mallet
+
+        // Wall bounce sound
+        if (aIsWall || bIsWall) {
+            let puckBody = aIsWall ? contact.bodyB : contact.bodyA
+            if puckBody.categoryBitMask == Physics.puck {
+                let spd = hypot(puckBody.velocity.dx, puckBody.velocity.dy)
+                if spd > 80 { SFX.shared.playWall() }
+            }
+        }
+
         // Manual velocity transfer: SpriteKit treats isDynamic=false as a static wall,
         // ignoring its velocity for impulse calculations. We add the mallet-speed
         // component ourselves so a fast swipe actually launches the puck.
-        let aIsMallet = contact.bodyA.categoryBitMask == Physics.mallet
-        let bIsMallet = contact.bodyB.categoryBitMask == Physics.mallet
         guard aIsMallet || bIsMallet else { return }
         let aIsPuck = contact.bodyA.categoryBitMask == Physics.puck
         let bIsPuck = contact.bodyB.categoryBitMask == Physics.puck
@@ -577,6 +589,10 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         let e: CGFloat = 0.80
         let j = (1 + e) * vRel * puckBody.mass
         puckBody.applyImpulse(CGVector(dx: nx * j, dy: ny * j))
+
+        // Hit sound — louder for faster strikes
+        let malletSpeed = hypot(mv.dx, mv.dy)
+        SFX.shared.playHit(speed: malletSpeed + CGFloat(vRel))
     }
 
     // MARK: - AI
@@ -669,6 +685,8 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
         puckNode?.physicsBody?.velocity = .zero
         puckNode?.physicsBody?.isDynamic = false
+
+        SFX.shared.playGoal()
 
         let flash = SKShapeNode(rectOf: size)
         flash.fillColor = scorer == 1
