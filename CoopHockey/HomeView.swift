@@ -20,8 +20,8 @@ struct HomeView: View {
                         Text("COOP")
                             .font(.system(size: 58, weight: .black))
                             .foregroundColor(.white)
-                        Text("HOCKEY")
-                            .font(.system(size: 58, weight: .black))
+                        Text("AIRHOCKEY")
+                            .font(.system(size: 46, weight: .black))
                             .foregroundColor(.cyan)
                     }
                     .padding(.bottom, 36)

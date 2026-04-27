@@ -425,7 +425,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoopHockey/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "COOP Hockey";
+				INFOPLIST_KEY_CFBundleDisplayName = "COOP AirHockey";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -459,7 +459,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoopHockey/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "COOP Hockey";
+				INFOPLIST_KEY_CFBundleDisplayName = "COOP AirHockey";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -555,15 +555,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1B2C3D4E5F60100 /* Build configuration list for PBXProject "CoopHockey" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1B2C3D4E5F60110 /* Debug */,
-				A1B2C3D4E5F60111 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A1B2C3D4E5F600A0 /* Build configuration list for PBXNativeTarget "CoopHockey" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -587,6 +578,15 @@
 			buildConfigurations = (
 				A1B2C3D4E5F60140 /* Debug */,
 				A1B2C3D4E5F60141 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1B2C3D4E5F60100 /* Build configuration list for PBXProject "CoopHockey" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D4E5F60110 /* Debug */,
+				A1B2C3D4E5F60111 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

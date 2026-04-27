@@ -4,7 +4,7 @@ struct CreditsView: View {
     var body: some View {
         List {
             Section("GAME") {
-                Text("COOP Hockey")
+                Text("COOP AirHockey")
                     .font(.headline)
                 Text("A two-player local air hockey game for iPhone.")
                     .font(.subheadline)
