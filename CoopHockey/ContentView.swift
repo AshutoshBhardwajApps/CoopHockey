@@ -12,38 +12,40 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
+            // Full-screen dark background (extends behind the inset SpriteView)
+            Color(red: 0.04, green: 0.13, blue: 0.06).ignoresSafeArea()
+
             // Stable presenter VC for interstitial ads
             AdPresenter().frame(width: 0, height: 0)
 
-            // Full-screen rink
+            // Rink — inset from top/bottom to keep play area away from system gesture zones
             SpriteView(scene: coordinator.scene)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.top, 52)
+                .padding(.bottom, 68)
                 .ignoresSafeArea()
                 .onAppear { coordinator.startGame() }
 
-            // Scores overlay
-            VStack(spacing: 0) {
-                // P2 score at top — rotated so it faces the top-seated player
-                let p2Label = coordinator.gameMode == .twoPlayer ? settings.player2Name : "CPU"
-                ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color,
-                           name: p2Label)
-                    .rotationEffect(.degrees(180))
-                    .padding(.top, 52)
+            // Scores — positioned near each player's mallet zone using screen-relative fractions
+            let p2Label = coordinator.gameMode == .twoPlayer ? settings.player2Name : "CPU"
+            GeometryReader { geo in
+                ZStack {
+                    ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label)
+                        .rotationEffect(.degrees(180))
+                        .position(x: geo.size.width / 2, y: geo.size.height * 0.26)
 
-                Spacer()
-
-                // P1 score at bottom
-                ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color,
-                           name: settings.player1Name)
-                    .padding(.bottom, 52)
+                    ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name)
+                        .position(x: geo.size.width / 2, y: geo.size.height * 0.74)
+                }
             }
+            .ignoresSafeArea()
 
             // "GOAL!" flash
             if case .goalScored(let scorer) = coordinator.state {
                 GoalBanner(scorer: scorer)
             }
 
-            // Pause / exit button
+            // Pause / exit buttons
             VStack {
                 HStack {
                     Button {
@@ -64,8 +66,10 @@ struct ContentView: View {
                             .padding(16)
                     }
                 }
+                .padding(.top, 52)
                 Spacer()
             }
+            .ignoresSafeArea()
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $coordinator.showResult) {
@@ -107,7 +111,7 @@ private struct GoalBanner: View {
             .font(.system(size: 52, weight: .black, design: .rounded))
             .foregroundColor(scorer == 1 ? Theme.player1Color : Theme.player2Color)
             .shadow(color: .black.opacity(0.5), radius: 4)
-            .rotationEffect(scorer == 2 ? .degrees(180) : .zero)
+            .rotationEffect(scorer == 2 ? .degrees(90) : .zero)
             .transition(.scale(scale: 0.4).combined(with: .opacity))
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: scorer)
     }

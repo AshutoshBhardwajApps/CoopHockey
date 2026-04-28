@@ -41,6 +41,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     private var puckTowardPlayer = 0
     private var goalCooldown = false
     private let maxPuckSpeed: CGFloat = 1100
+    private var stuckTimer: CGFloat = 0
 
     // MARK: - Lifecycle
 
@@ -83,6 +84,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         needsPuck = false
         puckTowardPlayer = 0
         lastUpdateTime = 0
+        stuckTimer = 0
         if mallet1 != nil {
             isGameRunning = true
             resetMalletPositions()
@@ -100,6 +102,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         needsPuck = true
         puckTowardPlayer = player
         lastUpdateTime = 0
+        stuckTimer = 0
     }
 
     func pauseGame()  { isPaused = true;  isGameRunning = false }
@@ -383,8 +386,8 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         puckNode?.removeFromParent()
 
         let puck = SKShapeNode(circleOfRadius: puckRadius)
-        puck.fillColor = UIColor(white: 0.16, alpha: 1)
-        puck.strokeColor = UIColor.white.withAlphaComponent(0.85)
+        puck.fillColor = UIColor(white: 0.88, alpha: 1)
+        puck.strokeColor = UIColor.white
         puck.lineWidth = 2.5
         puck.zPosition = 4
         puck.name = "puck"
@@ -522,6 +525,22 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             if spd > maxPuckSpeed {
                 let scale = maxPuckSpeed / spd
                 puckNode.physicsBody?.velocity = CGVector(dx: v.dx * scale, dy: v.dy * scale)
+            }
+        }
+
+        // Stuck-puck rescue: if nearly stationary for >0.7s, kick toward center
+        if let puck = puckNode, let body = puck.physicsBody {
+            let spd = hypot(body.velocity.dx, body.velocity.dy)
+            if spd < 55 {
+                stuckTimer += dt
+                if stuckTimer > 0.7 {
+                    stuckTimer = 0
+                    let kickDir: CGFloat = puck.position.y > 0 ? -1 : 1
+                    let kickX = CGFloat.random(in: -120...120)
+                    body.velocity = CGVector(dx: kickX, dy: kickDir * 320)
+                }
+            } else {
+                stuckTimer = 0
             }
         }
 
