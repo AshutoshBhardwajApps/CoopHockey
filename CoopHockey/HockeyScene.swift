@@ -42,6 +42,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     private var goalCooldown = false
     private let maxPuckSpeed: CGFloat = 1100
     private var stuckTimer: CGFloat = 0
+    private var stuckRescueAttempts: Int = 0
 
     // MARK: - Lifecycle
 
@@ -90,6 +91,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         puckTowardPlayer = 0
         lastUpdateTime = 0
         stuckTimer = 0
+        stuckRescueAttempts = 0
         if mallet1 != nil {
             isGameRunning = true
             resetMalletPositions()
@@ -108,6 +110,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         puckTowardPlayer = player
         lastUpdateTime = 0
         stuckTimer = 0
+        stuckRescueAttempts = 0
     }
 
     func pauseGame()  { isPaused = true;  isGameRunning = false }
@@ -550,12 +553,12 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
                 let threshold: CGFloat = aiHandlesIt ? 1.6 : 0.7
                 if stuckTimer > threshold {
                     stuckTimer = 0
-                    let kickDir: CGFloat = puck.position.y > 0 ? -1 : 1
-                    let kickX = CGFloat.random(in: -120...120)
-                    body.velocity = CGVector(dx: kickX, dy: kickDir * 320)
+                    performStuckRescue(puck: puck, body: body)
                 }
             } else {
+                // Puck moving freely — reset the rescue escalation
                 stuckTimer = 0
+                if spd > 140 { stuckRescueAttempts = 0 }
             }
         }
 
@@ -596,6 +599,79 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
                 }
             }
         }
+    }
+
+    // MARK: - Stuck rescue
+
+    /// Smart rescue when the puck stalls. The naive approach — kick toward
+    /// center — fails when a mallet sits between the puck and center: the puck
+    /// just bounces back into the corner and re-stucks on a 1s loop. So we:
+    ///   1. Detect a mallet in the kick path and pivot the kick *perpendicular*
+    ///      to escape around it.
+    ///   2. After two failed attempts, teleport the puck to a safe drop point
+    ///      (clear of both mallets) — geometry isn't going to fix itself.
+    private func performStuckRescue(puck: SKShapeNode, body: SKPhysicsBody) {
+        stuckRescueAttempts += 1
+
+        // After 2 failed attempts, the trap geometry isn't going to clear on
+        // its own — relocate the puck to a safe spot.
+        if stuckRescueAttempts >= 3 {
+            stuckRescueAttempts = 0
+            let safe = safeDropPoint(awayFrom: puck.position)
+            puck.position = safe
+            // Send it toward whoever's side it didn't just appear on
+            let kickDir: CGFloat = safe.y > 0 ? -1 : 1
+            body.velocity = CGVector(dx: CGFloat.random(in: -80...80), dy: kickDir * 280)
+            return
+        }
+
+        // Default kick: from puck's current half toward center.
+        let kickDir: CGFloat = puck.position.y > 0 ? -1 : 1
+        var kx = CGFloat.random(in: -120...120)
+        var ky = kickDir * 320
+
+        // Is a mallet in the way? Check the relevant defender for the kick.
+        // If puck is on player side (y<0), the player's mallet (mallet1) is
+        // the blocker. If on AI side, mallet2.
+        let blocker: SKShapeNode? = puck.position.y < 0 ? mallet1 : mallet2
+        if let blocker {
+            let bx = blocker.position.x
+            let by = blocker.position.y
+            let dx = bx - puck.position.x
+            let dy = by - puck.position.y
+            let dist = hypot(dx, dy)
+            // Mallet "in path" if it's close AND between puck and center on Y
+            let inPath = dist < (malletRadius + puckRadius) * 2.4 &&
+                         ((kickDir > 0 && by > puck.position.y) ||
+                          (kickDir < 0 && by < puck.position.y))
+            if inPath {
+                // Pivot kick perpendicular — go around whichever side has more
+                // room from the blocker (away from blocker's X).
+                let escapeSign: CGFloat = (puck.position.x >= bx) ? 1 : -1
+                kx = escapeSign * 340
+                ky = kickDir * 120  // mostly sideways, slight forward bias
+            }
+        }
+
+        body.velocity = CGVector(dx: kx, dy: ky)
+    }
+
+    /// A point inside the play area that is clear of both mallets and the
+    /// goal columns, biased toward the half the puck is currently in so the
+    /// teleport feels less jarring.
+    private func safeDropPoint(awayFrom origin: CGPoint) -> CGPoint {
+        let h = size.height
+        let w = size.width
+        let targetY: CGFloat = origin.y >= 0 ? h * 0.18 : -h * 0.18
+        let candidates: [CGFloat] = [0, -w * 0.22, w * 0.22, -w * 0.30, w * 0.30]
+        let minClear = (malletRadius + puckRadius) * 1.6
+        for cx in candidates {
+            let p = CGPoint(x: cx, y: targetY)
+            let d1 = hypot(p.x - (mallet1?.position.x ?? 0), p.y - (mallet1?.position.y ?? 0))
+            let d2 = hypot(p.x - (mallet2?.position.x ?? 0), p.y - (mallet2?.position.y ?? 0))
+            if d1 > minClear && d2 > minClear { return p }
+        }
+        return CGPoint(x: 0, y: targetY)
     }
 
     // MARK: - Contact
