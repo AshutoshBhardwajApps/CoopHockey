@@ -47,7 +47,12 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
     override func didMove(to view: SKView) {
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        backgroundColor = UIColor(red: 0.04, green: 0.13, blue: 0.06, alpha: 1)
+        // Transparent so SwiftUI scores rendered behind the SpriteView remain
+        // visible — but get visually covered by any SKNode (puck/mallet) that
+        // moves over them. The matching dark-green table color is supplied by
+        // ContentView's outer Color view.
+        backgroundColor = .clear
+        view.allowsTransparency = true
         physicsWorld.gravity = .zero
         physicsWorld.contactDelegate = self
         view.isMultipleTouchEnabled = true

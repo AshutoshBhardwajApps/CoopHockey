@@ -18,6 +18,33 @@ struct ContentView: View {
             // Stable presenter VC for interstitial ads
             AdPresenter().frame(width: 0, height: 0)
 
+            // Scores — sideways on the right edge, centered in each half so the
+            // dashed center line visually separates them. Rendered BEFORE the
+            // SpriteView so the puck and mallets (drawn into the SpriteView with
+            // a transparent background) visually overlap and hide the scores
+            // when they pass over them.
+            //
+            // Two-player: scores mirror each other (P2 reads from top, P1 from
+            // bottom). vsComputer: both scores read from P1's seat since there
+            // is no second human looking from the top.
+            let isVsComputer = coordinator.gameMode != .twoPlayer
+            let p2Label = isVsComputer ? "CPU" : settings.player2Name
+            let p2Rotation: Double = isVsComputer ? -90 : 90
+            let p2NameFirst = isVsComputer
+            GeometryReader { geo in
+                let rightX = geo.size.width - 38
+                ZStack {
+                    ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label, nameFirst: p2NameFirst)
+                        .rotationEffect(.degrees(p2Rotation))
+                        .position(x: rightX, y: geo.size.height * 0.45)
+
+                    ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name, nameFirst: true)
+                        .rotationEffect(.degrees(-90))
+                        .position(x: rightX, y: geo.size.height * 0.55)
+                }
+            }
+            .ignoresSafeArea()
+
             // Rink — inset from top/bottom to keep play area away from system gesture zones
             SpriteView(scene: coordinator.scene)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -30,35 +57,6 @@ struct ContentView: View {
                     // makes the result sheet render blank.
                     if coordinator.state == .idle { coordinator.startGame() }
                 }
-
-            // Scores — sideways on the right edge, centered in each half so the
-            // dashed center line visually separates them.
-            //
-            // Two-player: scores mirror each other (P2 reads from top, P1 from
-            // bottom). vsComputer: both scores read from P1's seat since there
-            // is no second human looking from the top.
-            let isVsComputer = coordinator.gameMode != .twoPlayer
-            let p2Label = isVsComputer ? "CPU" : settings.player2Name
-            // P2 rotation: +90° in 2-player (faces P2), -90° vs CPU (faces P1)
-            let p2Rotation: Double = isVsComputer ? -90 : 90
-            // VStack ordering: when rotation is -90°, name must be first so the
-            // score lands on the right edge after rotation.
-            let p2NameFirst = isVsComputer
-            GeometryReader { geo in
-                let rightX = geo.size.width - 38
-                ZStack {
-                    // P2 / CPU score
-                    ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label, nameFirst: p2NameFirst)
-                        .rotationEffect(.degrees(p2Rotation))
-                        .position(x: rightX, y: geo.size.height * 0.45)
-
-                    // P1 score
-                    ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name, nameFirst: true)
-                        .rotationEffect(.degrees(-90))
-                        .position(x: rightX, y: geo.size.height * 0.55)
-                }
-            }
-            .ignoresSafeArea()
 
             // "GOAL!" flash
             if case .goalScored(let scorer) = coordinator.state {
