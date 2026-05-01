@@ -613,14 +613,30 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     private func performStuckRescue(puck: SKShapeNode, body: SKPhysicsBody) {
         stuckRescueAttempts += 1
 
-        // After 2 failed attempts, the trap geometry isn't going to clear on
-        // its own — relocate the puck to a safe spot.
-        if stuckRescueAttempts >= 3 {
+        // Identify the most-relevant mallet (the one on the puck's side of the
+        // table — that's the one most likely sitting on top of the puck).
+        let nearMallet: SKShapeNode? = puck.position.y < 0 ? mallet1 : mallet2
+        let pinnedDist: CGFloat
+        if let nm = nearMallet {
+            pinnedDist = hypot(nm.position.x - puck.position.x,
+                               nm.position.y - puck.position.y)
+        } else {
+            pinnedDist = .greatestFiniteMagnitude
+        }
+        // If a mallet is essentially sitting on top of the puck, no kick can
+        // save it — the puck just bounces back into the mallet point-blank.
+        // Skip straight to the teleport rescue.
+        let pinned = pinnedDist < (malletRadius + puckRadius) * 1.15
+
+        // After 2 failed attempts, OR immediately if pinned by a mallet, the
+        // trap geometry isn't going to clear with another kick — relocate.
+        if pinned || stuckRescueAttempts >= 3 {
             stuckRescueAttempts = 0
-            let safe = safeDropPoint(awayFrom: puck.position)
+            let safe = safeDropPoint(stuckOn: puck.position)
             puck.position = safe
-            // Send it toward whoever's side it didn't just appear on
-            let kickDir: CGFloat = safe.y > 0 ? -1 : 1
+            // Send the puck into the half it was just teleported into so the
+            // player there has to react — looks like a fresh face-off.
+            let kickDir: CGFloat = safe.y > 0 ? 1 : -1
             body.velocity = CGVector(dx: CGFloat.random(in: -80...80), dy: kickDir * 280)
             return
         }
@@ -630,16 +646,12 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         var kx = CGFloat.random(in: -120...120)
         var ky = kickDir * 320
 
-        // Is a mallet in the way? Check the relevant defender for the kick.
-        // If puck is on player side (y<0), the player's mallet (mallet1) is
-        // the blocker. If on AI side, mallet2.
-        let blocker: SKShapeNode? = puck.position.y < 0 ? mallet1 : mallet2
-        if let blocker {
+        // Is a mallet in the kick lane? If puck is on player side (y<0), the
+        // player's mallet is the blocker. If on AI side, mallet2.
+        if let blocker = nearMallet {
             let bx = blocker.position.x
             let by = blocker.position.y
-            let dx = bx - puck.position.x
-            let dy = by - puck.position.y
-            let dist = hypot(dx, dy)
+            let dist = pinnedDist
             // Mallet "in path" if it's close AND between puck and center on Y
             let inPath = dist < (malletRadius + puckRadius) * 2.4 &&
                          ((kickDir > 0 && by > puck.position.y) ||
@@ -656,14 +668,16 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         body.velocity = CGVector(dx: kx, dy: ky)
     }
 
-    /// A point inside the play area that is clear of both mallets and the
-    /// goal columns, biased toward the half the puck is currently in so the
-    /// teleport feels less jarring.
-    private func safeDropPoint(awayFrom origin: CGPoint) -> CGPoint {
+    /// A drop point on the OPPOSITE half from where the puck got stuck, clear
+    /// of both mallets and the goal columns. Teleporting to the opposite half
+    /// guarantees the player whose mallet was trapping the puck can't keep
+    /// re-trapping it instantly.
+    private func safeDropPoint(stuckOn origin: CGPoint) -> CGPoint {
         let h = size.height
         let w = size.width
-        let targetY: CGFloat = origin.y >= 0 ? h * 0.18 : -h * 0.18
-        let candidates: [CGFloat] = [0, -w * 0.22, w * 0.22, -w * 0.30, w * 0.30]
+        // Opposite half from origin. If origin.y == 0, default to AI half.
+        let targetY: CGFloat = origin.y < 0 ? h * 0.22 : -h * 0.22
+        let candidates: [CGFloat] = [0, -w * 0.18, w * 0.18, -w * 0.30, w * 0.30]
         let minClear = (malletRadius + puckRadius) * 1.6
         for cx in candidates {
             let p = CGPoint(x: cx, y: targetY)

@@ -45,8 +45,11 @@ struct ContentView: View {
             }
             .ignoresSafeArea()
 
-            // Rink — inset from top/bottom to keep play area away from system gesture zones
-            SpriteView(scene: coordinator.scene)
+            // Rink — inset from top/bottom to keep play area away from system gesture zones.
+            // .allowsTransparency lets the dark-green Color and the SwiftUI score labels
+            // behind this SpriteView show through; without it SwiftUI renders an opaque
+            // black backing regardless of the scene's backgroundColor = .clear.
+            SpriteView(scene: coordinator.scene, options: [.allowsTransparency])
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.top, 52)
                 .padding(.bottom, 68)
