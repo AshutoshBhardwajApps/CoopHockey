@@ -24,7 +24,12 @@ struct ContentView: View {
                 .padding(.top, 52)
                 .padding(.bottom, 68)
                 .ignoresSafeArea()
-                .onAppear { coordinator.startGame() }
+                .onAppear {
+                    // Guard against re-firing after the interstitial ad dismisses —
+                    // re-running startGame() resets state away from .gameOver and
+                    // makes the result sheet render blank.
+                    if coordinator.state == .idle { coordinator.startGame() }
+                }
 
             // Scores — sideways on the right edge, centered in each half so the
             // dashed center line visually separates them.
@@ -32,15 +37,15 @@ struct ContentView: View {
             GeometryReader { geo in
                 let rightX = geo.size.width - 38
                 ZStack {
-                    // P2 (top half) — rotated so it reads correctly from P2's seat
+                    // P2 (top half) — sits just above the center line on the right edge
                     ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label)
                         .rotationEffect(.degrees(90))
-                        .position(x: rightX, y: geo.size.height * 0.25)
+                        .position(x: rightX, y: geo.size.height * 0.45)
 
-                    // P1 (bottom half) — rotated so it reads correctly from P1's seat
+                    // P1 (bottom half) — sits just below the center line on the right edge
                     ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name)
                         .rotationEffect(.degrees(-90))
-                        .position(x: rightX, y: geo.size.height * 0.75)
+                        .position(x: rightX, y: geo.size.height * 0.55)
                 }
             }
             .ignoresSafeArea()
