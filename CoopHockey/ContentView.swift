@@ -24,18 +24,28 @@ struct ContentView: View {
                 .padding(.top, 52)
                 .padding(.bottom, 68)
                 .ignoresSafeArea()
-                .onAppear { coordinator.startGame() }
+                .onAppear {
+                    // Guard against re-firing after the interstitial ad dismisses —
+                    // re-running startGame() resets state away from .gameOver and
+                    // makes the result sheet render blank.
+                    if coordinator.state == .idle { coordinator.startGame() }
+                }
 
-            // Scores — positioned near each player's mallet zone using screen-relative fractions
+            // Scores — sideways on the right edge, centered in each half so the
+            // dashed center line visually separates them.
             let p2Label = coordinator.gameMode == .twoPlayer ? settings.player2Name : "CPU"
             GeometryReader { geo in
+                let rightX = geo.size.width - 38
                 ZStack {
+                    // P2 (top half) — sits just above the center line on the right edge
                     ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label)
-                        .rotationEffect(.degrees(180))
-                        .position(x: geo.size.width / 2, y: geo.size.height * 0.26)
+                        .rotationEffect(.degrees(90))
+                        .position(x: rightX, y: geo.size.height * 0.45)
 
+                    // P1 (bottom half) — sits just below the center line on the right edge
                     ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name)
-                        .position(x: geo.size.width / 2, y: geo.size.height * 0.74)
+                        .rotationEffect(.degrees(-90))
+                        .position(x: rightX, y: geo.size.height * 0.55)
                 }
             }
             .ignoresSafeArea()
