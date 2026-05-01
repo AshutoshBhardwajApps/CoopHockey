@@ -324,7 +324,9 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
     private func buildGoalSensors() {
         let h = size.height
-        let depth: CGFloat = 44
+        // Deep sensor — catches the puck even if it tunnels several frames past
+        // the table edge before the goal is registered.
+        let depth: CGFloat = 400
         // Top sensor: P1 scores (puck entered P2's goal)
         addGoalSensor(CGRect(x: -goalWidth/2, y: h/2,     width: goalWidth, height: depth), name: "goal_p1")
         // Bottom sensor: P2 scores
@@ -528,12 +530,20 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             }
         }
 
-        // Stuck-puck rescue: if nearly stationary for >0.7s, kick toward center
+        // Stuck-puck rescue. In vsComputer mode, if the puck is stuck on the AI
+        // side, the AI handler (updateAI) will physically swing the mallet at it
+        // so the recovery looks natural. Otherwise (2-player, or stuck on player
+        // side in 1P), fall back to a gentle nudge so play can continue.
         if let puck = puckNode, let body = puck.physicsBody {
             let spd = hypot(body.velocity.dx, body.velocity.dy)
+            let onAISide = puck.position.y > 0
+            let aiHandlesIt = (gameMode != .twoPlayer) && onAISide
+
             if spd < 55 {
                 stuckTimer += dt
-                if stuckTimer > 0.7 {
+                // Give AI longer to attempt a real hit before we teleport-rescue
+                let threshold: CGFloat = aiHandlesIt ? 1.6 : 0.7
+                if stuckTimer > threshold {
                     stuckTimer = 0
                     let kickDir: CGFloat = puck.position.y > 0 ? -1 : 1
                     let kickX = CGFloat.random(in: -120...120)
@@ -609,6 +619,16 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         let j = (1 + e) * vRel * puckBody.mass
         puckBody.applyImpulse(CGVector(dx: nx * j, dy: ny * j))
 
+        // Immediately cap post-impulse velocity so a single fast hit can't tunnel
+        // through walls/sensors in one physics step (precise detection helps but
+        // this guarantees the puck never starts a frame above maxPuckSpeed).
+        let pv = puckBody.velocity
+        let pvSpd = hypot(pv.dx, pv.dy)
+        if pvSpd > maxPuckSpeed {
+            let s = maxPuckSpeed / pvSpd
+            puckBody.velocity = CGVector(dx: pv.dx * s, dy: pv.dy * s)
+        }
+
         // Hit sound — louder for faster strikes
         let malletSpeed = hypot(mv.dx, mv.dy)
         SFX.shared.playHit(speed: malletSpeed + CGFloat(vRel))
@@ -635,21 +655,40 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             aiNoiseX = CGFloat.random(in: -jitter...jitter)
         }
 
-        // Raw target is recomputed every frame — no stale target lag
-        let rawTarget = aiRawTarget(puck: puck, vel: pv)
+        // Stuck-puck rescue (AI side): line up the mallet behind the puck and
+        // swing through it toward the player's half — looks like a real strike,
+        // not a teleport. Activates after the puck has been near-stationary on
+        // the AI side for a moment.
+        let puckSpd = hypot(pv.dx, pv.dy)
+        let isStuckOnAISide = puck.position.y > 0 && puckSpd < 55 && stuckTimer > 0.35
 
-        // Smooth the AI towards the raw target. Response time controls difficulty feel:
-        // slow smooth = AI appears to react late (easy), fast smooth = snappy (hard).
+        let rawTarget: CGPoint
         let responseTime: CGFloat
         let maxSpeed: CGFloat
-        switch difficulty {
-        case .easy:   responseTime = 0.30; maxSpeed = 195
-        case .medium: responseTime = 0.10; maxSpeed = 385
-        case .hard:   responseTime = 0.03; maxSpeed = 650
+
+        if isStuckOnAISide {
+            // Approach from behind the puck (between puck and back wall) so the
+            // contact normal pushes the puck toward center/player's half.
+            let backOffset = malletRadius + puckRadius + 6
+            let tx = puck.position.x          // line up directly behind
+            let ty = puck.position.y + backOffset
+            rawTarget = CGPoint(x: tx, y: ty)
+            // Always swing aggressively regardless of difficulty so play resumes
+            responseTime = 0.04
+            maxSpeed = 720
+            aiSmoothTarget = rawTarget        // skip smoothing — go now
+        } else {
+            // Normal play
+            rawTarget = aiRawTarget(puck: puck, vel: pv)
+            switch difficulty {
+            case .easy:   responseTime = 0.30; maxSpeed = 195
+            case .medium: responseTime = 0.10; maxSpeed = 385
+            case .hard:   responseTime = 0.03; maxSpeed = 650
+            }
+            let alpha = min(1, dt / responseTime)
+            aiSmoothTarget.x += (rawTarget.x - aiSmoothTarget.x) * alpha
+            aiSmoothTarget.y += (rawTarget.y - aiSmoothTarget.y) * alpha
         }
-        let alpha = min(1, dt / responseTime)
-        aiSmoothTarget.x += (rawTarget.x - aiSmoothTarget.x) * alpha
-        aiSmoothTarget.y += (rawTarget.y - aiSmoothTarget.y) * alpha
 
         // Move mallet toward smooth target at capped speed
         let dx = aiSmoothTarget.x - mallet2.position.x
@@ -704,6 +743,15 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
         puckNode?.physicsBody?.velocity = .zero
         puckNode?.physicsBody?.isDynamic = false
+
+        // Snap puck back into the visible play area so it doesn't appear to vanish
+        // when it tunnels past the table edge into the goal sensor.
+        if let puck = puckNode {
+            let h = size.height
+            let edge = puckRadius + 4
+            if puck.position.y >  h/2 - edge { puck.position.y =  h/2 - edge }
+            if puck.position.y < -h/2 + edge { puck.position.y = -h/2 + edge }
+        }
 
         SFX.shared.playGoal()
 

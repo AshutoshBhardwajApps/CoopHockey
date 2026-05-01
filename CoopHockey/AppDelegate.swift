@@ -16,6 +16,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             print("Audio session error: \(error)")
         }
 
+        // Register test devices so real ad-unit IDs serve TEST ads on these devices.
+        // Find your device's hashed ID in the Xcode console after the first ad request:
+        //   "To get test ads on this device, set: Mobile Ads SDK ... testDeviceIdentifiers = @[ @"ABC123..." ]"
+        // Paste that hash into the array below. Safe to ship with real device IDs in production —
+        // it only affects the listed devices.
+        MobileAds.shared.requestConfiguration.testDeviceIdentifiers = [
+            "979fc0c499c82c5211db23733cdf821d", // Ashutosh's iPhone
+        ]
+
         MobileAds.shared.start()
 
         // Request ATT before loading ads so the SDK can serve personalized ads.

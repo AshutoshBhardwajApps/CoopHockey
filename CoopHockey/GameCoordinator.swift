@@ -84,7 +84,12 @@ final class GameCoordinator: ObservableObject {
                         forName: .adDidDismiss, object: nil, queue: .main
                     ) { [weak self] _ in
                         if let t = token { NotificationCenter.default.removeObserver(t) }
-                        self?.showResult = true
+                        // Delay so the interstitial VC fully tears down before SwiftUI
+                        // presents the result sheet — otherwise the sheet can fail to
+                        // show, leaving a blank screen.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                            self?.showResult = true
+                        }
                     }
                 } else {
                     self.showResult = true

@@ -11,9 +11,9 @@ extension Notification.Name {
 final class AdManager: NSObject, ObservableObject {
     static let shared = AdManager()
 
-    // REPLACE with your real interstitial unit ID from console.admob.com
-    // Using Google's demo test ID below so test ads work immediately.
-    // Real ID format: "ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX"
+    // Real production interstitial unit ID.
+    // For development: register your device as a test device (see start() below)
+    // and AdMob will serve test ads on it even with this real ID.
     private let interstitialID = "ca-app-pub-2320635595451132/7068208518"
 
     private let minRoundsBetweenAds: Int = 1
