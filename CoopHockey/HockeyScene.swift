@@ -563,6 +563,34 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
                 else if py < -size.height / 2 + puckRadius { triggerGoal(by: 2) }
             }
         }
+
+        // Hard position clamp — final safety net so the puck can never escape
+        // the visible play area through a corner seam. Only the goal column is
+        // exempt (so legitimate scoring still works).
+        if let puck = puckNode, !goalCooldown {
+            let hw = size.width / 2
+            let hh = size.height / 2
+            let m = puckRadius + 4
+            var p = puck.position
+            let inGoalCol = abs(p.x) < goalWidth / 2 - puckRadius
+            var clampedX = false, clampedY = false
+            if p.x >  hw - m { p.x =  hw - m; clampedX = true }
+            if p.x < -hw + m { p.x = -hw + m; clampedX = true }
+            if !inGoalCol {
+                if p.y >  hh - m { p.y =  hh - m; clampedY = true }
+                if p.y < -hh + m { p.y = -hh + m; clampedY = true }
+            }
+            if clampedX || clampedY {
+                puck.position = p
+                // Reflect velocity off the clamped axis so it bounces naturally
+                if let body = puck.physicsBody {
+                    var v = body.velocity
+                    if clampedX { v.dx = -v.dx * 0.6 }
+                    if clampedY { v.dy = -v.dy * 0.6 }
+                    body.velocity = v
+                }
+            }
+        }
     }
 
     // MARK: - Contact
