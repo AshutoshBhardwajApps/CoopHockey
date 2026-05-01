@@ -42,8 +42,10 @@ struct ContentView: View {
                         .rotationEffect(.degrees(90))
                         .position(x: rightX, y: geo.size.height * 0.45)
 
-                    // P1 (bottom half) — sits just below the center line on the right edge
-                    ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name)
+                    // P1 (bottom half) — name-first so the -90° rotation lands the
+                    // score on the right edge (matching P2) and keeps the name inward
+                    // toward center instead of off the right edge of the screen.
+                    ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name, nameFirst: true)
                         .rotationEffect(.degrees(-90))
                         .position(x: rightX, y: geo.size.height * 0.55)
                 }
@@ -99,17 +101,30 @@ private struct ScoreLabel: View {
     let score: Int
     let color: Color
     let name: String
+    var nameFirst: Bool = false   // true → name above score in the VStack
 
     var body: some View {
         VStack(spacing: 2) {
-            Text("\(score)")
-                .font(.system(size: 60, weight: .black, design: .rounded))
-                .foregroundColor(color)
-            Text(name)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.white.opacity(0.50))
+            if nameFirst {
+                nameText
+                scoreText
+            } else {
+                scoreText
+                nameText
+            }
         }
+    }
+
+    private var scoreText: some View {
+        Text("\(score)")
+            .font(.system(size: 60, weight: .black, design: .rounded))
+            .foregroundColor(color)
+    }
+    private var nameText: some View {
+        Text(name)
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundColor(.white.opacity(0.50))
     }
 }
 
