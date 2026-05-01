@@ -33,18 +33,26 @@ struct ContentView: View {
 
             // Scores — sideways on the right edge, centered in each half so the
             // dashed center line visually separates them.
-            let p2Label = coordinator.gameMode == .twoPlayer ? settings.player2Name : "CPU"
+            //
+            // Two-player: scores mirror each other (P2 reads from top, P1 from
+            // bottom). vsComputer: both scores read from P1's seat since there
+            // is no second human looking from the top.
+            let isVsComputer = coordinator.gameMode != .twoPlayer
+            let p2Label = isVsComputer ? "CPU" : settings.player2Name
+            // P2 rotation: +90° in 2-player (faces P2), -90° vs CPU (faces P1)
+            let p2Rotation: Double = isVsComputer ? -90 : 90
+            // VStack ordering: when rotation is -90°, name must be first so the
+            // score lands on the right edge after rotation.
+            let p2NameFirst = isVsComputer
             GeometryReader { geo in
                 let rightX = geo.size.width - 38
                 ZStack {
-                    // P2 (top half) — sits just above the center line on the right edge
-                    ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label)
-                        .rotationEffect(.degrees(90))
+                    // P2 / CPU score
+                    ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label, nameFirst: p2NameFirst)
+                        .rotationEffect(.degrees(p2Rotation))
                         .position(x: rightX, y: geo.size.height * 0.45)
 
-                    // P1 (bottom half) — name-first so the -90° rotation lands the
-                    // score on the right edge (matching P2) and keeps the name inward
-                    // toward center instead of off the right edge of the screen.
+                    // P1 score
                     ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name, nameFirst: true)
                         .rotationEffect(.degrees(-90))
                         .position(x: rightX, y: geo.size.height * 0.55)
