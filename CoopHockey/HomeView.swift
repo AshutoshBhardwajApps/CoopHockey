@@ -3,8 +3,10 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var scores: HighScoresStore
+    @EnvironmentObject var purchaseManager: PurchaseManager
     @State private var activeGameMode: GameMode? = nil
     @State private var showDifficulty = false
+    @State private var showRemoveAdsSheet = false
 
     var body: some View {
         NavigationStack {
@@ -135,6 +137,30 @@ struct HomeView: View {
                             .foregroundColor(.secondary)
                     }
 
+                    // Remove Ads pill — visible only until purchased.
+                    if !settings.hasRemovedAds {
+                        Button {
+                            showRemoveAdsSheet = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "nosign")
+                                Text("Remove Ads")
+                                if let price = purchaseManager.localizedPrice {
+                                    Text("· \(price)")
+                                        .foregroundColor(.white.opacity(0.6))
+                                }
+                            }
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(.cyan)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule().stroke(Color.cyan.opacity(0.55), lineWidth: 1)
+                            )
+                        }
+                        .padding(.top, 12)
+                    }
+
                     Spacer()
                 }
             }
@@ -148,6 +174,12 @@ struct HomeView: View {
             ContentView(gameMode: mode)
                 .environmentObject(settings)
                 .environmentObject(scores)
+                .environmentObject(purchaseManager)
+        }
+        .fullScreenCover(isPresented: $showRemoveAdsSheet) {
+            RemoveAdsPromoView(onDismiss: { showRemoveAdsSheet = false })
+                .environmentObject(settings)
+                .environmentObject(purchaseManager)
         }
     }
 

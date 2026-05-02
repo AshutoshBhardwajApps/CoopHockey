@@ -4,6 +4,7 @@ import SpriteKit
 struct ContentView: View {
     @StateObject private var coordinator: GameCoordinator
     @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var purchaseManager: PurchaseManager
     @Environment(\.dismiss) private var dismiss
 
     init(gameMode: GameMode = .twoPlayer) {
@@ -100,6 +101,19 @@ struct ContentView: View {
                 dismiss()
             })
             .environmentObject(settings)
+        }
+        .fullScreenCover(isPresented: $coordinator.showRemoveAdsPromo) {
+            RemoveAdsPromoView(onDismiss: {
+                coordinator.showRemoveAdsPromo = false
+                // Match the ad-dismiss flow — small delay so the promo's
+                // dismissal animation finishes before the result sheet
+                // tries to present, otherwise the sheet can fail to show.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    coordinator.showResult = true
+                }
+            })
+            .environmentObject(settings)
+            .environmentObject(purchaseManager)
         }
     }
 }

@@ -7,6 +7,7 @@ final class PurchaseManager: ObservableObject {
 
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published private(set) var localizedPrice: String?
 
     private var products: [Product] = []
 
@@ -15,6 +16,7 @@ final class PurchaseManager: ObservableObject {
     func loadProducts() async {
         do {
             products = try await Product.products(for: [SettingsStore.removeAdsProductID])
+            localizedPrice = products.first?.displayPrice
         } catch {
             print("[PurchaseManager] loadProducts error: \(error)")
         }

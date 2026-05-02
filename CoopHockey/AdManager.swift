@@ -52,6 +52,24 @@ final class AdManager: NSObject, ObservableObject {
         roundsSinceLastAd += 1
     }
 
+    /// Returns true ~1-in-5 of the times an ad would otherwise show. Lets the
+    /// caller display a "Remove Ads" promo in place of the real interstitial.
+    /// Same gating as presentIfAllowed (rounds, gap, ads-not-disabled) so the
+    /// promo only fires in slots where an ad would actually have run.
+    func shouldShowPromoInsteadOfAd() -> Bool {
+        guard !adsDisabled else { return false }
+        guard roundsSinceLastAd >= minRoundsBetweenAds else { return false }
+        if let last = lastShown, Date().timeIntervalSince(last) < minGapSeconds { return false }
+        return Int.random(in: 0..<5) == 0
+    }
+
+    /// Mark a promo as having "consumed" the current ad slot — resets the
+    /// round counter and timestamp the same way a real ad show would.
+    func notePromoShown() {
+        roundsSinceLastAd = 0
+        lastShown = Date()
+    }
+
     // MARK: - Present
 
     func presentIfAllowed(completion: ((Bool) -> Void)? = nil) {

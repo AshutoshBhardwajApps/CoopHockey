@@ -32,6 +32,7 @@ final class GameCoordinator: ObservableObject {
     @Published var p2Score: Int = 0
     @Published var state: GameState = .idle
     @Published var showResult = false
+    @Published var showRemoveAdsPromo = false
 
     let scene: HockeyScene
     let gameMode: GameMode
@@ -76,6 +77,14 @@ final class GameCoordinator: ObservableObject {
                 p2Goals: p2Score
             )
             AdManager.shared.noteRoundCompleted()
+            // 1-in-5 chance: show the Remove Ads promo in place of a real
+            // interstitial. Promo dismissal triggers the result sheet via
+            // showRemoveAdsPromo's didSet-style flow in ContentView.
+            if AdManager.shared.shouldShowPromoInsteadOfAd() {
+                AdManager.shared.notePromoShown()
+                self.showRemoveAdsPromo = true
+                return
+            }
             AdManager.shared.presentIfAllowed { [weak self] shown in
                 guard let self else { return }
                 if shown {
