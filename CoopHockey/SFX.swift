@@ -31,6 +31,8 @@ final class SFX {
     // MARK: - Public API
 
     /// Called when a mallet hits the puck. `speed` is the approach velocity (pts/s).
+    /// Sound profile: a punchy "thwack" — lower fundamental + downward freq sweep
+    /// gives it more weight; lower noise ratio leaves a clean tonal body for ASMR.
     func playHit(speed: CGFloat) {
         guard SettingsStore.shared.effectsEnabled else { return }
         let now = CACurrentMediaTime()
@@ -39,16 +41,18 @@ final class SFX {
 
         let norm   = Float(min(1.0, max(0.15, speed / 700)))
         let buffer = makeBuffer(
-            duration:   0.09,
-            decayTime:  0.022,
-            freqHz:     650 + Double(norm) * 550,
-            volume:     0.28 + norm * 0.52,
-            noiseRatio: 0.50
+            duration:   0.13,
+            decayTime:  0.030,
+            freqHz:     380 + Double(norm) * 320,
+            volume:     0.30 + norm * 0.55,
+            noiseRatio: 0.32,
+            freqSweep:  0.55
         )
         schedule(buffer)
     }
 
-    /// Called when the puck bounces off a wall.
+    /// Called when the puck bounces off a wall. Sound profile: soft, woody
+    /// "thud" — low fundamental, balanced noise/tone, slight downward sweep.
     func playWall() {
         guard SettingsStore.shared.effectsEnabled else { return }
         let now = CACurrentMediaTime()
@@ -56,11 +60,12 @@ final class SFX {
         lastHitTime = now
 
         let buffer = makeBuffer(
-            duration:   0.06,
-            decayTime:  0.014,
-            freqHz:     320,
-            volume:     0.16,
-            noiseRatio: 0.75
+            duration:   0.10,
+            decayTime:  0.024,
+            freqHz:     185,
+            volume:     0.22,
+            noiseRatio: 0.55,
+            freqSweep:  0.7
         )
         schedule(buffer)
     }

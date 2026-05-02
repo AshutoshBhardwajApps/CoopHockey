@@ -28,6 +28,10 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
     private var p1Touch: UITouch?
     private var p2Touch: UITouch?
+    // Offset from finger to mallet center at the moment the mallet was grabbed,
+    // so dragging keeps the same pickup-point on the mallet (no teleport snap).
+    private var p1GrabOffset: CGPoint = .zero
+    private var p2GrabOffset: CGPoint = .zero
 
     private var mallet1Target: CGPoint = .zero
     private var mallet2Target: CGPoint = .zero
@@ -42,7 +46,6 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     private var goalCooldown = false
     private let maxPuckSpeed: CGFloat = 1100
     private var stuckTimer: CGFloat = 0
-    private var stuckRescueAttempts: Int = 0
 
     // MARK: - Lifecycle
 
@@ -91,7 +94,6 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         puckTowardPlayer = 0
         lastUpdateTime = 0
         stuckTimer = 0
-        stuckRescueAttempts = 0
         if mallet1 != nil {
             isGameRunning = true
             resetMalletPositions()
@@ -110,7 +112,6 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         puckTowardPlayer = player
         lastUpdateTime = 0
         stuckTimer = 0
-        stuckRescueAttempts = 0
     }
 
     func pauseGame()  { isPaused = true;  isGameRunning = false }
@@ -428,16 +429,29 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         let isVsComputer = gameMode != .twoPlayer
+        // Comfortable grab area around the mallet — slightly larger than the
+        // mallet itself so a thumb landing right next to it still picks it up,
+        // but a tap far away won't teleport the mallet across the table.
+        let grabRadius = malletRadius * 1.8
+
         for t in touches {
             let loc = t.location(in: self)
-            if loc.y < 0, p1Touch == nil {
-                p1Touch = t
-                mallet1Target = clampMallet(loc, half: .bottom)
-                mallet1.position = mallet1Target
-            } else if loc.y >= 0, p2Touch == nil, !isVsComputer {
-                p2Touch = t
-                mallet2Target = clampMallet(loc, half: .top)
-                mallet2.position = mallet2Target
+            if loc.y < 0, p1Touch == nil, mallet1 != nil {
+                let d = hypot(loc.x - mallet1.position.x, loc.y - mallet1.position.y)
+                if d <= grabRadius {
+                    p1Touch = t
+                    p1GrabOffset = CGPoint(x: mallet1.position.x - loc.x,
+                                           y: mallet1.position.y - loc.y)
+                    mallet1Target = mallet1.position
+                }
+            } else if loc.y >= 0, p2Touch == nil, !isVsComputer, mallet2 != nil {
+                let d = hypot(loc.x - mallet2.position.x, loc.y - mallet2.position.y)
+                if d <= grabRadius {
+                    p2Touch = t
+                    p2GrabOffset = CGPoint(x: mallet2.position.x - loc.x,
+                                           y: mallet2.position.y - loc.y)
+                    mallet2Target = mallet2.position
+                }
             }
         }
     }
@@ -447,9 +461,13 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         for t in touches {
             let loc = t.location(in: self)
             if t === p1Touch {
-                mallet1.position = clampMallet(loc, half: .bottom)
+                let target = CGPoint(x: loc.x + p1GrabOffset.x,
+                                     y: loc.y + p1GrabOffset.y)
+                mallet1.position = clampMallet(target, half: .bottom)
             } else if t === p2Touch {
-                mallet2.position = clampMallet(loc, half: .top)
+                let target = CGPoint(x: loc.x + p2GrabOffset.x,
+                                     y: loc.y + p2GrabOffset.y)
+                mallet2.position = clampMallet(target, half: .top)
             }
         }
     }
@@ -538,28 +556,14 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             }
         }
 
-        // Stuck-puck rescue. In vsComputer mode, if the puck is stuck on the AI
-        // side, the AI handler (updateAI) will physically swing the mallet at it
-        // so the recovery looks natural. Otherwise (2-player, or stuck on player
-        // side in 1P), fall back to a gentle nudge so play can continue.
+        // Stuck-puck tracking. We no longer auto-kick or teleport the puck —
+        // the game is meant to feel realistic, so a stalled puck must be freed
+        // by physically moving a mallet into it. The AI handler (updateAI)
+        // uses stuckTimer to swing aggressively when the puck stalls on its
+        // side; on the player side the human just has to drag their hitter.
         if let puck = puckNode, let body = puck.physicsBody {
             let spd = hypot(body.velocity.dx, body.velocity.dy)
-            let onAISide = puck.position.y > 0
-            let aiHandlesIt = (gameMode != .twoPlayer) && onAISide
-
-            if spd < 55 {
-                stuckTimer += dt
-                // Give AI longer to attempt a real hit before we teleport-rescue
-                let threshold: CGFloat = aiHandlesIt ? 1.6 : 0.7
-                if stuckTimer > threshold {
-                    stuckTimer = 0
-                    performStuckRescue(puck: puck, body: body)
-                }
-            } else {
-                // Puck moving freely — reset the rescue escalation
-                stuckTimer = 0
-                if spd > 140 { stuckRescueAttempts = 0 }
-            }
+            if spd < 55 { stuckTimer += dt } else { stuckTimer = 0 }
         }
 
         // Fallback positional goal detection (anti-tunnel safety net)
@@ -601,93 +605,6 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         }
     }
 
-    // MARK: - Stuck rescue
-
-    /// Smart rescue when the puck stalls. The naive approach — kick toward
-    /// center — fails when a mallet sits between the puck and center: the puck
-    /// just bounces back into the corner and re-stucks on a 1s loop. So we:
-    ///   1. Detect a mallet in the kick path and pivot the kick *perpendicular*
-    ///      to escape around it.
-    ///   2. After two failed attempts, teleport the puck to a safe drop point
-    ///      (clear of both mallets) — geometry isn't going to fix itself.
-    private func performStuckRescue(puck: SKShapeNode, body: SKPhysicsBody) {
-        stuckRescueAttempts += 1
-
-        // Identify the most-relevant mallet (the one on the puck's side of the
-        // table — that's the one most likely sitting on top of the puck).
-        let nearMallet: SKShapeNode? = puck.position.y < 0 ? mallet1 : mallet2
-        let pinnedDist: CGFloat
-        if let nm = nearMallet {
-            pinnedDist = hypot(nm.position.x - puck.position.x,
-                               nm.position.y - puck.position.y)
-        } else {
-            pinnedDist = .greatestFiniteMagnitude
-        }
-        // If a mallet is essentially sitting on top of the puck, no kick can
-        // save it — the puck just bounces back into the mallet point-blank.
-        // Skip straight to the teleport rescue.
-        let pinned = pinnedDist < (malletRadius + puckRadius) * 1.15
-
-        // After 2 failed attempts, OR immediately if pinned by a mallet, the
-        // trap geometry isn't going to clear with another kick — relocate.
-        if pinned || stuckRescueAttempts >= 3 {
-            stuckRescueAttempts = 0
-            let safe = safeDropPoint(stuckOn: puck.position)
-            puck.position = safe
-            // Send the puck into the half it was just teleported into so the
-            // player there has to react — looks like a fresh face-off.
-            let kickDir: CGFloat = safe.y > 0 ? 1 : -1
-            body.velocity = CGVector(dx: CGFloat.random(in: -80...80), dy: kickDir * 280)
-            return
-        }
-
-        // Default kick: from puck's current half toward center.
-        let kickDir: CGFloat = puck.position.y > 0 ? -1 : 1
-        var kx = CGFloat.random(in: -120...120)
-        var ky = kickDir * 320
-
-        // Is a mallet in the kick lane? If puck is on player side (y<0), the
-        // player's mallet is the blocker. If on AI side, mallet2.
-        if let blocker = nearMallet {
-            let bx = blocker.position.x
-            let by = blocker.position.y
-            let dist = pinnedDist
-            // Mallet "in path" if it's close AND between puck and center on Y
-            let inPath = dist < (malletRadius + puckRadius) * 2.4 &&
-                         ((kickDir > 0 && by > puck.position.y) ||
-                          (kickDir < 0 && by < puck.position.y))
-            if inPath {
-                // Pivot kick perpendicular — go around whichever side has more
-                // room from the blocker (away from blocker's X).
-                let escapeSign: CGFloat = (puck.position.x >= bx) ? 1 : -1
-                kx = escapeSign * 340
-                ky = kickDir * 120  // mostly sideways, slight forward bias
-            }
-        }
-
-        body.velocity = CGVector(dx: kx, dy: ky)
-    }
-
-    /// A drop point on the OPPOSITE half from where the puck got stuck, clear
-    /// of both mallets and the goal columns. Teleporting to the opposite half
-    /// guarantees the player whose mallet was trapping the puck can't keep
-    /// re-trapping it instantly.
-    private func safeDropPoint(stuckOn origin: CGPoint) -> CGPoint {
-        let h = size.height
-        let w = size.width
-        // Opposite half from origin. If origin.y == 0, default to AI half.
-        let targetY: CGFloat = origin.y < 0 ? h * 0.22 : -h * 0.22
-        let candidates: [CGFloat] = [0, -w * 0.18, w * 0.18, -w * 0.30, w * 0.30]
-        let minClear = (malletRadius + puckRadius) * 1.6
-        for cx in candidates {
-            let p = CGPoint(x: cx, y: targetY)
-            let d1 = hypot(p.x - (mallet1?.position.x ?? 0), p.y - (mallet1?.position.y ?? 0))
-            let d2 = hypot(p.x - (mallet2?.position.x ?? 0), p.y - (mallet2?.position.y ?? 0))
-            if d1 > minClear && d2 > minClear { return p }
-        }
-        return CGPoint(x: 0, y: targetY)
-    }
-
     // MARK: - Contact
 
     func didBegin(_ contact: SKPhysicsContact) {
@@ -701,12 +618,15 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         let aIsMallet = contact.bodyA.categoryBitMask == Physics.mallet
         let bIsMallet = contact.bodyB.categoryBitMask == Physics.mallet
 
-        // Wall bounce sound
+        // Wall bounce sound + soft haptic
         if (aIsWall || bIsWall) {
             let puckBody = aIsWall ? contact.bodyB : contact.bodyA
             if puckBody.categoryBitMask == Physics.puck {
                 let spd = hypot(puckBody.velocity.dx, puckBody.velocity.dy)
-                if spd > 80 { SFX.shared.playWall() }
+                if spd > 80 {
+                    SFX.shared.playWall()
+                    Haptics.shared.wallBounce(intensity: CGFloat(min(0.7, spd / 900)))
+                }
             }
         }
 
@@ -755,6 +675,11 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         // Hit sound — louder for faster strikes
         let malletSpeed = hypot(mv.dx, mv.dy)
         SFX.shared.playHit(speed: malletSpeed + CGFloat(vRel))
+
+        // Haptic punch on the device that owns this mallet — scaled by impact
+        // intensity so a soft tap is a soft tap and a swing is a thump.
+        let totalSpeed = malletSpeed + CGFloat(vRel)
+        Haptics.shared.puckHit(intensity: min(1.0, totalSpeed / 850))
     }
 
     // MARK: - AI
@@ -877,6 +802,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         }
 
         SFX.shared.playGoal()
+        Haptics.shared.goal()
 
         let flash = SKShapeNode(rectOf: size)
         flash.fillColor = scorer == 1
