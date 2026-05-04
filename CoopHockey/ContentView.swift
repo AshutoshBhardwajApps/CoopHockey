@@ -20,23 +20,19 @@ struct ContentView: View {
             AdPresenter().frame(width: 0, height: 0)
 
             // Scores — sideways on the right edge, centered in each half so the
-            // dashed center line visually separates them. Rendered BEFORE the
-            // SpriteView so the puck and mallets (drawn into the SpriteView with
-            // a transparent background) visually overlap and hide the scores
-            // when they pass over them.
-            //
-            // Two-player: scores mirror each other (P2 reads from top, P1 from
-            // bottom). vsComputer: both scores read from P1's seat since there
-            // is no second human looking from the top.
+            // dashed center line visually separates them. Both scores are
+            // rotated -90° so they read right-side up from P1's seat (the
+            // bottom of the device), regardless of game mode.
+            // Rendered BEFORE the SpriteView so the puck and mallets (drawn
+            // into the transparent SpriteView) visually overlap and hide the
+            // scores when they pass over them.
             let isVsComputer = coordinator.gameMode != .twoPlayer
             let p2Label = isVsComputer ? "CPU" : settings.player2Name
-            let p2Rotation: Double = isVsComputer ? -90 : 90
-            let p2NameFirst = isVsComputer
             GeometryReader { geo in
                 let rightX = geo.size.width - 38
                 ZStack {
-                    ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label, nameFirst: p2NameFirst)
-                        .rotationEffect(.degrees(p2Rotation))
+                    ScoreLabel(score: coordinator.p2Score, color: Theme.player2Color, name: p2Label, nameFirst: true)
+                        .rotationEffect(.degrees(-90))
                         .position(x: rightX, y: geo.size.height * 0.45)
 
                     ScoreLabel(score: coordinator.p1Score, color: Theme.player1Color, name: settings.player1Name, nameFirst: true)

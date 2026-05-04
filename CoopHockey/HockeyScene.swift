@@ -255,7 +255,7 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
         // Zone labels — inset past the goal pocket
         addZoneLabel(text: "P2", y: topPocketY - goalDepth/2 - 22,
-                     color: UIColor(red: 0.15, green: 0.4, blue: 0.9, alpha: 0.22), rotate: true)
+                     color: UIColor(red: 0.15, green: 0.4, blue: 0.9, alpha: 0.22))
         addZoneLabel(text: "P1", y: botPocketY + goalDepth/2 + 22,
                      color: UIColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 0.22))
     }
