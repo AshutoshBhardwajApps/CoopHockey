@@ -16,7 +16,7 @@ final class AdManager: NSObject, ObservableObject {
     // and AdMob will serve test ads on it even with this real ID.
     private let interstitialID = "ca-app-pub-2320635595451132/7068208518"
 
-    private let minRoundsBetweenAds: Int = 1
+    private let minRoundsBetweenAds: Int = 2
     private let minGapSeconds: TimeInterval = 0
 
     private var lastShown: Date?
@@ -52,7 +52,7 @@ final class AdManager: NSObject, ObservableObject {
         roundsSinceLastAd += 1
     }
 
-    /// Returns true ~1-in-5 of the times an ad would otherwise show. Lets the
+    /// Returns true ~1-in-8 of the times an ad would otherwise show. Lets the
     /// caller display a "Remove Ads" promo in place of the real interstitial.
     /// Same gating as presentIfAllowed (rounds, gap, ads-not-disabled) so the
     /// promo only fires in slots where an ad would actually have run.
@@ -60,7 +60,7 @@ final class AdManager: NSObject, ObservableObject {
         guard !adsDisabled else { return false }
         guard roundsSinceLastAd >= minRoundsBetweenAds else { return false }
         if let last = lastShown, Date().timeIntervalSince(last) < minGapSeconds { return false }
-        return Int.random(in: 0..<5) == 0
+        return Int.random(in: 0..<8) == 0
     }
 
     /// Mark a promo as having "consumed" the current ad slot — resets the
