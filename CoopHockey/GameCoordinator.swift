@@ -33,6 +33,9 @@ final class GameCoordinator: ObservableObject {
     @Published var state: GameState = .idle
     @Published var showResult = false
     @Published var showRemoveAdsPromo = false
+    /// nil when no countdown is active. Otherwise the current number being
+    /// shown (3, 2, 1). ContentView renders an overlay when non-nil.
+    @Published var countdownValue: Int? = nil
 
     let scene: HockeyScene
     let gameMode: GameMode
@@ -53,11 +56,28 @@ final class GameCoordinator: ObservableObject {
         p2Score = 0
         state = .playing
         showResult = false
-        scene.startGame()
+        scene.prepareNewGame()
+        runCountdown { [weak self] in
+            self?.scene.launchGame()
+        }
     }
 
     func togglePause() {
         if scene.isPaused { scene.resumeGame() } else { scene.pauseGame() }
+    }
+
+    /// Run a 3-2-1 countdown, updating @Published countdownValue each tick.
+    /// `completion` fires after the final tick — typically used to actually
+    /// release the puck into play.
+    private func runCountdown(from start: Int = 3, completion: @escaping () -> Void) {
+        Task { @MainActor in
+            for n in stride(from: start, through: 1, by: -1) {
+                self.countdownValue = n
+                try? await Task.sleep(nanoseconds: 700_000_000)
+            }
+            self.countdownValue = nil
+            completion()
+        }
     }
 
     @MainActor
@@ -106,10 +126,14 @@ final class GameCoordinator: ObservableObject {
             }
         } else {
             Task { @MainActor in
+                // Hold on the GOAL banner for ~1.6s so the moment registers,
+                // then run the 3-2-1 countdown before releasing the puck.
                 try? await Task.sleep(nanoseconds: 1_600_000_000)
                 guard case .goalScored = self.state else { return }
-                self.scene.resumeAfterGoal(towardPlayer: scorer)
                 self.state = .playing
+                self.runCountdown { [weak self] in
+                    self?.scene.resumeAfterGoal(towardPlayer: scorer)
+                }
             }
         }
     }

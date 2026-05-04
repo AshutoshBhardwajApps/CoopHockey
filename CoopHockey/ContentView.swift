@@ -67,6 +67,12 @@ struct ContentView: View {
                 GoalBanner(scorer: scorer)
             }
 
+            // 3-2-1 countdown — shown on initial start and after each goal
+            // before the puck is released.
+            if let n = coordinator.countdownValue {
+                CountdownOverlay(value: n)
+            }
+
             // Pause / exit buttons
             VStack {
                 HStack {
@@ -148,6 +154,20 @@ private struct ScoreLabel: View {
             .font(.caption)
             .fontWeight(.semibold)
             .foregroundColor(.white.opacity(0.50))
+    }
+}
+
+private struct CountdownOverlay: View {
+    let value: Int
+
+    var body: some View {
+        Text("\(value)")
+            .font(.system(size: 200, weight: .black, design: .rounded))
+            .foregroundColor(.white)
+            .shadow(color: .black.opacity(0.55), radius: 18)
+            .transition(.scale(scale: 0.4).combined(with: .opacity))
+            .id(value)   // re-trigger transition each tick
+            .animation(.spring(response: 0.32, dampingFraction: 0.65), value: value)
     }
 }
 
