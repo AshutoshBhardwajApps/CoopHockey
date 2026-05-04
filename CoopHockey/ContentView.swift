@@ -158,12 +158,12 @@ private struct CountdownOverlay: View {
 
     var body: some View {
         Text("\(value)")
-            .font(.system(size: 200, weight: .black, design: .rounded))
-            .foregroundColor(.white)
-            .shadow(color: .black.opacity(0.55), radius: 18)
-            .transition(.scale(scale: 0.4).combined(with: .opacity))
+            .font(.system(size: 96, weight: .light, design: .rounded))
+            .foregroundColor(.cyan.opacity(0.55))
+            .shadow(color: .cyan.opacity(0.25), radius: 12)
+            .transition(.scale(scale: 0.7).combined(with: .opacity))
             .id(value)   // re-trigger transition each tick
-            .animation(.spring(response: 0.32, dampingFraction: 0.65), value: value)
+            .animation(.easeOut(duration: 0.25), value: value)
     }
 }
 

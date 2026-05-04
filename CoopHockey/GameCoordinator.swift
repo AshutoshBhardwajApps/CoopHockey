@@ -125,15 +125,15 @@ final class GameCoordinator: ObservableObject {
                 }
             }
         } else {
+            // Mid-game goal: just hold the GOAL banner briefly then resume —
+            // no countdown between points (only on first launch / after an
+            // ad / after the remove-ads screen, which all flow through
+            // startGame() and that runs the countdown there).
             Task { @MainActor in
-                // Hold on the GOAL banner for ~1.6s so the moment registers,
-                // then run the 3-2-1 countdown before releasing the puck.
                 try? await Task.sleep(nanoseconds: 1_600_000_000)
                 guard case .goalScored = self.state else { return }
+                self.scene.resumeAfterGoal(towardPlayer: scorer)
                 self.state = .playing
-                self.runCountdown { [weak self] in
-                    self?.scene.resumeAfterGoal(towardPlayer: scorer)
-                }
             }
         }
     }
