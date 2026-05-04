@@ -302,56 +302,47 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
     private func buildWalls() {
         let w = size.width, h = size.height
-        let t: CGFloat = 20    // wall thickness
         let cr: CGFloat = 22   // matches visual border cornerRadius
         let i: CGFloat = 3     // inset to align with visual border stroke
+        let gw = goalWidth
 
-        // Straight section lengths
-        let sideH   = h - 2*i - 2*cr          // left/right wall height (between corners)
-        let straightW = w/2 - i - cr - goalWidth/2  // top/bottom wall segment width
+        let left = -w/2 + i, right = w/2 - i
+        let top = h/2 - i, bottom = -h/2 + i
+        let gpL = -gw/2, gpR = gw/2
 
-        // Left wall (inner face at -w/2 + i)
-        addWall(CGRect(x: -w/2 + i - t, y: -(h/2 - i - cr), width: t, height: sideH))
-        // Right wall (inner face at w/2 - i)
-        addWall(CGRect(x:  w/2 - i,     y: -(h/2 - i - cr), width: t, height: sideH))
+        // Two edge-chain bodies that trace the EXACT same paths as the visible
+        // border (see drawVisuals). Edge chains are infinitely thin so the
+        // physics surface coincides with the visible wall — no hidden interior
+        // disks at the corners (the old circular corner bumpers extended ~22pt
+        // into the play area, causing puck to bounce off "ghost walls" near
+        // the corners).
 
-        // Top wall – left and right of goal opening (bottom face at h/2 - i)
-        addWall(CGRect(x: -w/2 + i + cr, y: h/2 - i, width: straightW, height: t))
-        addWall(CGRect(x:  goalWidth/2,  y: h/2 - i, width: straightW, height: t))
+        // Right half: gpR(top) → top-right corner → right side → bottom-right → gpR(bottom)
+        let pathR = CGMutablePath()
+        pathR.move(to: CGPoint(x: gpR, y: top))
+        pathR.addLine(to: CGPoint(x: right - cr, y: top))
+        pathR.addArc(center: CGPoint(x: right - cr, y: top  - cr), radius: cr, startAngle:  .pi/2, endAngle:  0,      clockwise: true)
+        pathR.addLine(to: CGPoint(x: right, y: bottom + cr))
+        pathR.addArc(center: CGPoint(x: right - cr, y: bottom + cr), radius: cr, startAngle:  0,     endAngle: -.pi/2, clockwise: true)
+        pathR.addLine(to: CGPoint(x: gpR, y: bottom))
 
-        // Bottom wall (top face at -h/2 + i)
-        addWall(CGRect(x: -w/2 + i + cr, y: -h/2 + i - t, width: straightW, height: t))
-        addWall(CGRect(x:  goalWidth/2,  y: -h/2 + i - t, width: straightW, height: t))
+        // Left half: gpL(bottom) → bottom-left corner → left side → top-left → gpL(top)
+        let pathL = CGMutablePath()
+        pathL.move(to: CGPoint(x: gpL, y: bottom))
+        pathL.addLine(to: CGPoint(x: left + cr, y: bottom))
+        pathL.addArc(center: CGPoint(x: left + cr, y: bottom + cr), radius: cr, startAngle: -.pi/2, endAngle: -.pi,   clockwise: true)
+        pathL.addLine(to: CGPoint(x: left, y: top - cr))
+        pathL.addArc(center: CGPoint(x: left + cr, y: top  - cr), radius: cr, startAngle:  .pi,    endAngle:  .pi/2, clockwise: true)
+        pathL.addLine(to: CGPoint(x: gpL, y: top))
 
-        // Circular corner bumpers — fill the gap left by the rounded visual corners
-        let cornerOffsets: [CGPoint] = [
-            CGPoint(x: -w/2 + i + cr, y:  h/2 - i - cr),
-            CGPoint(x:  w/2 - i - cr, y:  h/2 - i - cr),
-            CGPoint(x: -w/2 + i + cr, y: -h/2 + i + cr),
-            CGPoint(x:  w/2 - i - cr, y: -h/2 + i + cr),
-        ]
-        for pt in cornerOffsets { addCornerBumper(at: pt, radius: cr) }
+        addEdgeWall(path: pathR)
+        addEdgeWall(path: pathL)
     }
 
-    private func addWall(_ rect: CGRect) {
+    private func addEdgeWall(path: CGPath) {
         let node = SKNode()
-        let body = SKPhysicsBody(rectangleOf: rect.size,
-                                 center: CGPoint(x: rect.midX, y: rect.midY))
-        body.isDynamic = false
+        let body = SKPhysicsBody(edgeChainFrom: path)
         body.restitution = 0.65
-        body.friction = 0
-        body.categoryBitMask    = Physics.wall
-        body.collisionBitMask   = Physics.puck
-        body.contactTestBitMask = Physics.puck
-        node.physicsBody = body
-        addChild(node)
-    }
-
-    private func addCornerBumper(at center: CGPoint, radius: CGFloat) {
-        let node = SKNode()
-        let body = SKPhysicsBody(circleOfRadius: radius, center: center)
-        body.isDynamic = false
-        body.restitution = 0.55
         body.friction = 0
         body.categoryBitMask    = Physics.wall
         body.collisionBitMask   = Physics.puck
