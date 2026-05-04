@@ -19,8 +19,14 @@ final class AdManager: NSObject, ObservableObject {
     private let minRoundsBetweenAds: Int = 2
     private let minGapSeconds: TimeInterval = 0
 
+    /// Guarantee a Remove Ads promo every Nth completed game, bypassing the
+    /// random odds and ad-pacing gates. Random promo rolls still happen on
+    /// other games — this is a floor, not a ceiling.
+    private let forcePromoEvery: Int = 5
+
     private var lastShown: Date?
     private var roundsSinceLastAd = 0
+    private var gamesSincePromo = 0
     private var interstitial: InterstitialAd?
 
     private override init() { super.init() }
@@ -50,14 +56,18 @@ final class AdManager: NSObject, ObservableObject {
     func noteRoundCompleted() {
         guard !adsDisabled else { return }
         roundsSinceLastAd += 1
+        gamesSincePromo += 1
     }
 
-    /// Returns true ~1-in-8 of the times an ad would otherwise show. Lets the
-    /// caller display a "Remove Ads" promo in place of the real interstitial.
-    /// Same gating as presentIfAllowed (rounds, gap, ads-not-disabled) so the
-    /// promo only fires in slots where an ad would actually have run.
+    /// Whether to show the Remove Ads promo in place of an interstitial.
+    /// Two paths:
+    ///   1. Forced: guaranteed promo every Nth completed game, bypassing the
+    ///      ad-pacing gates so it always lands.
+    ///   2. Random: ~1-in-8 chance on other game-end slots, still gated by
+    ///      the normal ad pacing (rounds-between, gap, ads-not-disabled).
     func shouldShowPromoInsteadOfAd() -> Bool {
         guard !adsDisabled else { return false }
+        if gamesSincePromo >= forcePromoEvery { return true }
         guard roundsSinceLastAd >= minRoundsBetweenAds else { return false }
         if let last = lastShown, Date().timeIntervalSince(last) < minGapSeconds { return false }
         return Int.random(in: 0..<8) == 0
@@ -67,6 +77,7 @@ final class AdManager: NSObject, ObservableObject {
     /// round counter and timestamp the same way a real ad show would.
     func notePromoShown() {
         roundsSinceLastAd = 0
+        gamesSincePromo = 0
         lastShown = Date()
     }
 
