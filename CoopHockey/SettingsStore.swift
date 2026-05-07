@@ -4,7 +4,10 @@ import SwiftUI
 final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
 
-    static let removeAdsProductID = "coophockey.removeads"
+    // v2 of the Remove Ads product. The original `coophockey.removeads`
+    // got stuck in App Store Connect after the 1.3(14) rejection chain;
+    // creating a fresh ID lets us re-link the IAP to the build cleanly.
+    static let removeAdsProductID = "coophockey.removeads2"
     static let targetScoreOptions  = [5, 7, 9]
 
     @Published var player1Name: String   { didSet { save() } }
