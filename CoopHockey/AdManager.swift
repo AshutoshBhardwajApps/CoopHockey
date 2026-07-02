@@ -16,13 +16,13 @@ final class AdManager: NSObject, ObservableObject {
     // and AdMob will serve test ads on it even with this real ID.
     private let interstitialID = "ca-app-pub-2320635595451132/7068208518"
 
-    private let minRoundsBetweenAds: Int = 2
+    private let minRoundsBetweenAds: Int = 1
     private let minGapSeconds: TimeInterval = 0
 
     /// Guarantee a Remove Ads promo every Nth completed game, bypassing the
     /// random odds and ad-pacing gates. Random promo rolls still happen on
     /// other games — this is a floor, not a ceiling.
-    private let forcePromoEvery: Int = 5
+    private let forcePromoEvery: Int = 8
 
     private var lastShown: Date?
     private var roundsSinceLastAd = 0
@@ -63,14 +63,14 @@ final class AdManager: NSObject, ObservableObject {
     /// Two paths:
     ///   1. Forced: guaranteed promo every Nth completed game, bypassing the
     ///      ad-pacing gates so it always lands.
-    ///   2. Random: ~1-in-8 chance on other game-end slots, still gated by
+    ///   2. Random: ~1-in-12 chance on other game-end slots, still gated by
     ///      the normal ad pacing (rounds-between, gap, ads-not-disabled).
     func shouldShowPromoInsteadOfAd() -> Bool {
         guard !adsDisabled else { return false }
         if gamesSincePromo >= forcePromoEvery { return true }
         guard roundsSinceLastAd >= minRoundsBetweenAds else { return false }
         if let last = lastShown, Date().timeIntervalSince(last) < minGapSeconds { return false }
-        return Int.random(in: 0..<8) == 0
+        return Int.random(in: 0..<12) == 0
     }
 
     /// Mark a promo as having "consumed" the current ad slot — resets the
