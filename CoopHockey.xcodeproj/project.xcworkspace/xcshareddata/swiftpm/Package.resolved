@@ -1,13 +1,58 @@
 {
-  "originHash" : "3b9752ff554d5fdc91a7c01c2322a5d851b0979c36f02eb55188d9ab9e3d7e77",
+  "originHash" : "3abb0e3fc2d76e5fad7cdad46239fa0c0eccb84a2093a7c0f20516914b2d500b",
   "pins" : [
+    {
+      "identity" : "adsglobalpackage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/bytedance/AdsGlobalPackage.git",
+      "state" : {
+        "revision" : "e2d9f0850c7f9ce6c3d1256208ca0c00418dd259",
+        "version" : "8.1.1-release.1"
+      }
+    },
+    {
+      "identity" : "fbaudiencenetwork",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/facebook/FBAudienceNetwork.git",
+      "state" : {
+        "revision" : "0b7bd807fff993055838e6d6a410eddf590c09ac",
+        "version" : "6.21.1"
+      }
+    },
+    {
+      "identity" : "googleads-mobile-ios-mediation-liftoffmonetize",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/googleads/googleads-mobile-ios-mediation-liftoffmonetize.git",
+      "state" : {
+        "revision" : "5afbb7ba88034f5d39de49ec07f07a7ae7e41de1",
+        "version" : "7.7.400"
+      }
+    },
+    {
+      "identity" : "googleads-mobile-ios-mediation-meta",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/googleads/googleads-mobile-ios-mediation-meta.git",
+      "state" : {
+        "revision" : "1a09c48f80071b51b6f72c3c8a00662bd07818d4",
+        "version" : "6.21.101"
+      }
+    },
+    {
+      "identity" : "googleads-mobile-ios-mediation-pangle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/googleads/googleads-mobile-ios-mediation-pangle.git",
+      "state" : {
+        "revision" : "36bbfd567fe57e8e2a10e3f0e96f82fdc903fa98",
+        "version" : "8.1.10100"
+      }
+    },
     {
       "identity" : "swift-package-manager-google-mobile-ads",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/googleads/swift-package-manager-google-mobile-ads.git",
       "state" : {
-        "revision" : "1239c23464503053c17d37ee5daa70de3455e9c8",
-        "version" : "12.14.0"
+        "revision" : "7651abff585dc8dacd1744222d5f03bdd2a8532a",
+        "version" : "13.6.0"
       }
     },
     {
@@ -17,6 +62,15 @@
       "state" : {
         "revision" : "13b248eaa73b7826f0efb1bcf455e251d65ecb1b",
         "version" : "3.1.0"
+      }
+    },
+    {
+      "identity" : "vungleadssdk-swiftpackagemanager",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Vungle/VungleAdsSDK-SwiftPackageManager.git",
+      "state" : {
+        "revision" : "2ede5c7e5cb5407a73bfa6c74e495866080ba1ab",
+        "version" : "7.7.4"
       }
     }
   ],

@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		A1B2C3D4E5F60001 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60002 /* GoogleMobileAds */; };
+		A1B2C3D4E5F6000A /* MetaAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60004 /* MetaAdapterTarget */; };
+		A1B2C3D4E5F6000B /* LiftoffMonetizeAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60006 /* LiftoffMonetizeAdapterTarget */; };
+		A1B2C3D4E5F6000C /* PangleAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60008 /* PangleAdapterTarget */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +73,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F60001 /* GoogleMobileAds in Frameworks */,
+				A1B2C3D4E5F6000A /* MetaAdapterTarget in Frameworks */,
+				A1B2C3D4E5F6000B /* LiftoffMonetizeAdapterTarget in Frameworks */,
+				A1B2C3D4E5F6000C /* PangleAdapterTarget in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,6 +137,9 @@
 			name = CoopHockey;
 			packageProductDependencies = (
 				A1B2C3D4E5F60002 /* GoogleMobileAds */,
+				A1B2C3D4E5F60004 /* MetaAdapterTarget */,
+				A1B2C3D4E5F60006 /* LiftoffMonetizeAdapterTarget */,
+				A1B2C3D4E5F60008 /* PangleAdapterTarget */,
 			);
 			productName = CoopHockey;
 			productReference = A1B2C3D4E5F60031 /* CoopHockey.app */;
@@ -216,6 +225,9 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A1B2C3D4E5F60003 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				A1B2C3D4E5F60005 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-meta" */,
+				A1B2C3D4E5F60007 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-liftoffmonetize" */,
+				A1B2C3D4E5F60009 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-pangle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A1B2C3D4E5F60091 /* Products */;
@@ -599,7 +611,31 @@
 			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 12.11.0;
+				minimumVersion = 13.6.0;
+			};
+		};
+		A1B2C3D4E5F60005 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-meta" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/googleads-mobile-ios-mediation-meta.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.21.101;
+			};
+		};
+		A1B2C3D4E5F60007 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-liftoffmonetize" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/googleads-mobile-ios-mediation-liftoffmonetize.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.7.400;
+			};
+		};
+		A1B2C3D4E5F60009 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-pangle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/googleads-mobile-ios-mediation-pangle.git";
+			requirement = {
+				kind = exactVersion;
+				version = 8.1.10100;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -609,6 +645,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4E5F60003 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
+		};
+		A1B2C3D4E5F60004 /* MetaAdapterTarget */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60005 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-meta" */;
+			productName = MetaAdapterTarget;
+		};
+		A1B2C3D4E5F60006 /* LiftoffMonetizeAdapterTarget */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60007 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-liftoffmonetize" */;
+			productName = LiftoffMonetizeAdapterTarget;
+		};
+		A1B2C3D4E5F60008 /* PangleAdapterTarget */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60009 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-pangle" */;
+			productName = PangleAdapterTarget;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

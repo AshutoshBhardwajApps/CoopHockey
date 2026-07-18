@@ -1,1 +1,11 @@
 google.com, pub-2320635595451132, DIRECT, f08c47fec0942fa0
+# --- Mediation bidding partners ---
+# Uncomment each line and fill in your publisher/account ID once the
+# network account is approved. Each network's dashboard shows the exact
+# app-ads.txt line(s) to use — copy theirs verbatim if it differs.
+# Meta Audience Network — live in root file since 2026-07-18:
+facebook.com, 1467343555157943, DIRECT, c3e20eee3f780d68
+# Liftoff Monetize (account ID from publisher.vungle.com):
+# vungle.com, YOUR_LIFTOFF_ACCOUNT_ID, DIRECT, c107d686becd2d77
+# Pangle (copy the exact line from the Pangle publisher dashboard):
+# pangleglobal.com, YOUR_PANGLE_ID, DIRECT
