@@ -1,4 +1,7 @@
 import SwiftUI
+#if DEBUG
+import GoogleMobileAds
+#endif
 
 struct SettingsView: View {
     @EnvironmentObject var settings: SettingsStore
@@ -56,6 +59,22 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            #if DEBUG
+            Section("DEBUG") {
+                Button("Ad Inspector") {
+                    let scenes = UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                    guard let root = scenes.first?.windows
+                        .first(where: { $0.isKeyWindow })?.rootViewController else { return }
+                    var top = root
+                    while let presented = top.presentedViewController { top = presented }
+                    MobileAds.shared.presentAdInspector(from: top) { error in
+                        if let error { print("[AdInspector] \(error.localizedDescription)") }
+                    }
+                }
+            }
+            #endif
 
             Section("ABOUT") {
                 NavigationLink {
