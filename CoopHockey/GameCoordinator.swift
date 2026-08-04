@@ -70,19 +70,27 @@ final class GameCoordinator: ObservableObject {
     /// Slide NEMESIS's pressure from how the game is actually going, so it
     /// converges on a close contest instead of whatever a fixed setting
     /// happens to be worth against this particular player.
+    /// Where a NEMESIS game starts before anything is known about how it is
+    /// going. Set firm on purpose — this is the tier above HARD, so the
+    /// opening minute should feel like it.
+    private static let nemesisAnchor = 0.72
+    /// Never fall below roughly HARD's difficulty, whatever the scoreline.
+    private static let nemesisFloor = 0.30
+
     private func updateNemesisPressure() {
         guard gameMode == .vsComputer(.nemesis) else { return }
-        var p = PlayerModel.shared.basePressure
+        var p = Self.nemesisAnchor + PlayerModel.shared.historyOffset
 
         // Live scoreline: behind means back off, ahead means bear down.
-        p += Double(p1Score - p2Score) * 0.09
+        // Capped so one bad patch can't collapse the whole game.
+        p += max(-0.22, min(0.22, Double(p1Score - p2Score) * 0.055))
 
         // Shutout valve — if the player simply cannot get on the board,
         // ease off inside this game rather than waiting for the next one.
         let dry = Date().timeIntervalSince(lastPlayerGoal)
-        if dry > 150 { p -= 0.30 } else if dry > 75 { p -= 0.15 }
+        if dry > 180 { p -= 0.20 } else if dry > 90 { p -= 0.10 }
 
-        scene.nemesisPressure = CGFloat(max(0, min(1, p)))
+        scene.nemesisPressure = CGFloat(max(Self.nemesisFloor, min(1, p)))
     }
 
     @MainActor

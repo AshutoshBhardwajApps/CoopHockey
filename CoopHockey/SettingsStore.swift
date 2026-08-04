@@ -50,6 +50,15 @@ final class SettingsStore: ObservableObject {
         if trialUnsaved >= 5 { flushNemesisTrial() }
     }
 
+    #if DEBUG
+    /// Playtesting helper — hand the 15 minutes back.
+    func resetNemesisTrial() {
+        nemesisTrialUsed = 0
+        trialUnsaved = 0
+        UserDefaults.standard.set(0.0, forKey: "h.nemesisTrial")
+    }
+    #endif
+
     func flushNemesisTrial() {
         guard trialUnsaved > 0 else { return }
         trialUnsaved = 0

@@ -29,13 +29,14 @@ final class PlayerModel {
     private(set) var playerWins: Int
     private var dirty = false
 
-    /// Baseline pressure from the player's record, 0...1. The coordinator
-    /// adjusts this during a game from the live score — history alone is far
-    /// too slow a signal, since a game to seven can take minutes.
-    var basePressure: Double {
-        guard gamesStudied >= 2 else { return 0.5 }
+    /// A nudge either side of the coordinator's anchor, never the main driver.
+    /// Making history dominant was a mistake: a new player has no wins *by
+    /// definition*, which read as "struggling" and handed them the softest
+    /// possible opponent on their very first game.
+    var historyOffset: Double {
+        guard gamesStudied >= 3 else { return 0 }
         let winRate = Double(playerWins) / Double(gamesStudied)
-        return min(1.0, max(0.10, 0.20 + winRate * 0.9))
+        return (winRate - 0.5) * 0.24
     }
 
     /// The third of its own goal NEMESIS has conceded most through, as an x

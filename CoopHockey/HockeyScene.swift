@@ -1001,12 +1001,16 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     /// nothing at all — it still touches the puck. Errors have to clear that
     /// bar to open a real gap, which is why these numbers look large.
     private enum Nem {
-        static let lag       = (slack: CGFloat(0.20), tight: CGFloat(0.05))  // acts on stale puck state
-        static let commit    = (slack: CGFloat(0.30), tight: CGFloat(0.10))  // seconds locked to a target
-        static let speed     = (slack: CGFloat(520),  tight: CGFloat(800))
-        static let response  = (slack: CGFloat(0.065), tight: CGFloat(0.022))
-        static let aimErr    = (slack: CGFloat(74),   tight: CGFloat(6))
-        static let strike    = (slack: CGFloat(0.35), tight: CGFloat(0.80))  // attack vs simply clear
+        // The slack end is deliberately set at roughly HARD's difficulty, not
+        // below it — NEMESIS is sold as the step above HARD, so its weakest
+        // moment should still match it. Measured against a simulated player:
+        // HARD and NEMESIS-at-slack both hold a casual player to ~0 wins.
+        static let lag       = (slack: CGFloat(0.090), tight: CGFloat(0.025)) // acts on stale puck state
+        static let commit    = (slack: CGFloat(0.16),  tight: CGFloat(0.07))  // seconds locked to a target
+        static let speed     = (slack: CGFloat(720),   tight: CGFloat(900))
+        static let response  = (slack: CGFloat(0.034), tight: CGFloat(0.018))
+        static let aimErr    = (slack: CGFloat(24),    tight: CGFloat(4))
+        static let strike    = (slack: CGFloat(0.55),  tight: CGFloat(0.85))  // attack vs simply clear
         static let interceptDepth: CGFloat = 0.42
         static let guardDepth: CGFloat = 0.30
 

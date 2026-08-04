@@ -62,6 +62,16 @@ struct SettingsView: View {
 
             #if DEBUG
             Section("DEBUG") {
+                Button("Reset NEMESIS trial + profile") {
+                    settings.resetNemesisTrial()
+                    PlayerModel.shared.reset()
+                }
+                Text("Trial left: \(Int(settings.nemesisTrialRemaining / 60)) min · "
+                     + "studied \(PlayerModel.shared.gamesStudied) games · "
+                     + "history offset \(String(format: "%+.2f", PlayerModel.shared.historyOffset))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
                 Button("Ad Inspector") {
                     let scenes = UIApplication.shared.connectedScenes
                         .compactMap { $0 as? UIWindowScene }
