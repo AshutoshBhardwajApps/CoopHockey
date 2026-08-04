@@ -146,6 +146,8 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     func resumeAfterGoal(towardPlayer player: Int) {
         aiNoiseTimer = 0
         aiSmoothTarget = CGPoint(x: 0, y: size.height * 0.24)
+        puckHistory.removeAll(keepingCapacity: true)
+        nemCommitUntil = 0
         goalCooldown = false
         isGameRunning = true
         needsPuck = true
@@ -615,6 +617,25 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         let dt = CGFloat(lastUpdateTime == 0 ? 0.016 : min(currentTime - lastUpdateTime, 0.05))
         lastUpdateTime = currentTime
 
+        // Rolling puck history feeds NEMESIS's reaction delay.
+        if gameMode == .vsComputer(.nemesis), let puck = puckNode {
+            nemClock += TimeInterval(dt)
+            puckHistory.append((t: nemClock,
+                                pos: puck.position,
+                                vel: puck.physicsBody?.velocity ?? .zero))
+            // Keep a little over the longest lag we ever use, at 120Hz.
+            let horizon = nemClock - 0.5
+            if let firstKeep = puckHistory.firstIndex(where: { $0.t >= horizon }), firstKeep > 0 {
+                puckHistory.removeFirst(firstKeep)
+            }
+
+            let inOwnHalf = puck.position.y > 0
+            if inOwnHalf, !nemPuckWasInOwnHalf {
+                nemAttackRoll = CGFloat.random(in: 0...1)   // new possession
+            }
+            nemPuckWasInOwnHalf = inOwnHalf
+        }
+
         // This point is only reached while play is live (the guard above rules
         // out pauses, goal cooldowns and the pre-puck countdown), so it is the
         // right place to meter the trial.
@@ -835,7 +856,10 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         }
 
         // Start watching a player shot that is heading for the AI half.
-        if malletNode === mallet1, puckBody.velocity.dy > 60 {
+        // Only against the computer — in two-player games the "AI half" belongs
+        // to another human, and those shots say nothing about how this player
+        // attacks NEMESIS.
+        if malletNode === mallet1, puckBody.velocity.dy > 60, gameMode != .twoPlayer {
             shotInFlight = true
             shotBanked   = false
             shotOriginX  = pn.position.x
@@ -868,7 +892,9 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             case .easy:    jitter = 55; interval = 0.35
             case .medium:  jitter = 14; interval = 0.18
             case .hard:    jitter =  3; interval = 0.08
-            case .nemesis: jitter =  1; interval = 0.06
+            // NEMESIS gets its error from held commitments instead of this
+            // per-frame wobble, which would just average out.
+            case .nemesis: jitter =  0; interval = 0.10
             }
             aiNoiseTimer = interval
             aiNoiseX = CGFloat.random(in: -jitter...jitter)
@@ -899,12 +925,9 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         } else {
             // Normal play
             if difficulty == .nemesis {
-                rawTarget = nemesisTarget(puck: puck, vel: pv)
-                // Pressure earned from the player's record: a player who keeps
-                // winning gets a quicker, faster opponent next time.
-                let p = CGFloat(PlayerModel.shared.pressure)
-                responseTime = 0.030 - 0.014 * p     // 0.030 → 0.016
-                maxSpeed     = 660  + 230   * p      // 660   → 890
+                rawTarget    = nemesisTarget(puck: puck, vel: pv)
+                responseTime = Nem.lerp(Nem.response, nemesisPressure)
+                maxSpeed     = Nem.lerp(Nem.speed,    nemesisPressure)
             } else {
                 rawTarget = aiRawTarget(puck: puck, vel: pv)
                 switch difficulty {
@@ -967,6 +990,58 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
     // MARK: - NEMESIS
 
+    /// Every number that shapes how NEMESIS feels, in one place.
+    ///
+    /// Each pair is the value at zero pressure (NEMESIS backing off because
+    /// the player is being shut out) and at full pressure (the player is
+    /// winning comfortably). `nemesisPressure` slides between them.
+    ///
+    /// The important one is `aimErr`: the AI's mallet plus the puck give it a
+    /// ~47pt capture reach, so any aiming error smaller than that changes
+    /// nothing at all — it still touches the puck. Errors have to clear that
+    /// bar to open a real gap, which is why these numbers look large.
+    private enum Nem {
+        static let lag       = (slack: CGFloat(0.20), tight: CGFloat(0.05))  // acts on stale puck state
+        static let commit    = (slack: CGFloat(0.30), tight: CGFloat(0.10))  // seconds locked to a target
+        static let speed     = (slack: CGFloat(520),  tight: CGFloat(800))
+        static let response  = (slack: CGFloat(0.065), tight: CGFloat(0.022))
+        static let aimErr    = (slack: CGFloat(74),   tight: CGFloat(6))
+        static let strike    = (slack: CGFloat(0.35), tight: CGFloat(0.80))  // attack vs simply clear
+        static let interceptDepth: CGFloat = 0.42
+        static let guardDepth: CGFloat = 0.30
+
+        static func lerp(_ pair: (slack: CGFloat, tight: CGFloat), _ p: CGFloat) -> CGFloat {
+            pair.slack + (pair.tight - pair.slack) * max(0, min(1, p))
+        }
+    }
+
+    /// 0 = give the player room, 1 = play at full strength. Driven by the
+    /// coordinator from the live score, not just past games.
+    var nemesisPressure: CGFloat = 0.5
+
+    /// Recent puck states, so NEMESIS can act on what the puck was doing a
+    /// moment ago rather than solving from perfect present-tense knowledge.
+    /// Stamped with a time rather than counted in frames: this runs at 120Hz
+    /// on ProMotion devices and 60Hz elsewhere, so a frame count would make
+    /// NEMESIS twice as sharp on a newer phone.
+    private var puckHistory: [(t: TimeInterval, pos: CGPoint, vel: CGVector)] = []
+    private var nemCommitUntil: TimeInterval = 0
+    private var nemCommitX: CGFloat = 0
+    private var nemClock: TimeInterval = 0
+    /// Re-rolled once per possession, so NEMESIS decides "attack or clear"
+    /// for the whole touch rather than flickering between the two per frame.
+    private var nemAttackRoll: CGFloat = 0
+    private var nemPuckWasInOwnHalf = false
+
+    /// Gaussian sample, used once per commitment rather than per frame —
+    /// per-frame noise averages out to nothing and the mallet still arrives.
+    private func nemNoise(_ sigma: CGFloat) -> CGFloat {
+        guard sigma > 0 else { return 0 }
+        let u1 = max(1e-9, CGFloat.random(in: 0...1))
+        let u2 = CGFloat.random(in: 0...1)
+        return sigma * sqrt(-2 * log(u1)) * cos(2 * .pi * u2)
+    }
+
     /// Where the puck will cross `targetY`, following it through side-wall
     /// bounces instead of extrapolating in a straight line.
     ///
@@ -1007,36 +1082,61 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     /// line between the puck and its own net.
     private func nemesisTarget(puck: SKShapeNode, vel: CGVector) -> CGPoint {
         let model = PlayerModel.shared
+        let p  = nemesisPressure
         let m  = malletRadius + 6
         let hw = size.width  / 2
         let hh = size.height / 2
         let clampX: (CGFloat) -> CGFloat = { max(-hw + m, min(hw - m, $0)) }
         let clampY: (CGFloat) -> CGFloat = { max(m,        min(hh - m, $0)) }
 
-        let interceptY = hh * 0.42
-        let speed = hypot(vel.dx, vel.dy)
+        // Act on the puck as it was a moment ago. This is the difference
+        // between an opponent and a solver: it can still read a bank shot,
+        // but changing the angle late catches it leaning the wrong way.
+        let lag = Nem.lerp(Nem.lag, p)
+        let seen = puckStateDelayed(by: lag) ?? (pos: puck.position, vel: vel)
 
-        // Incoming: meet it where it will actually arrive.
-        if vel.dy > 40, puck.position.y < interceptY {
-            // A player who banks a lot earns deeper lookahead.
-            let bounces = model.bankRate > 0.4 ? 3 : 2
-            if let x = predictCrossingX(pos: puck.position, vel: vel,
-                                        targetY: interceptY, maxBounces: bounces) {
-                return CGPoint(x: clampX(x + aiNoiseX), y: clampY(interceptY))
+        let interceptY = hh * Nem.interceptDepth
+        let speed = hypot(seen.vel.dx, seen.vel.dy)
+
+        // Incoming: commit to where it will arrive, then hold that commitment.
+        // Holding is what makes it beatable — a re-strike or a deflection
+        // during the window leaves NEMESIS moving to a place the puck has
+        // already left. Re-solving every frame made it impossible to fool.
+        if seen.vel.dy > 40, seen.pos.y < interceptY {
+            if nemClock >= nemCommitUntil {
+                let bounces = model.bankRate > 0.4 ? 3 : 2
+                let solved = predictCrossingX(pos: seen.pos, vel: seen.vel,
+                                              targetY: interceptY, maxBounces: bounces)
+                if let solved {
+                    // Error sampled once and kept for the whole commitment.
+                    // Faster pucks and longer bank chains are read less surely.
+                    let base = Nem.lerp(Nem.aimErr, p)
+                    let hardness = min(1.6, speed / 700 + (bounces == 3 ? 0.3 : 0))
+                    nemCommitX = solved + nemNoise(base * hardness)
+                    nemCommitUntil = nemClock + TimeInterval(Nem.lerp(Nem.commit, p))
+                }
+            }
+            if nemClock < nemCommitUntil {
+                return CGPoint(x: clampX(nemCommitX), y: clampY(interceptY))
             }
         }
 
-        // In its half and slow enough to be struck: aim the return away from
-        // where this player likes to be, instead of just blocking it back.
-        if puck.position.y > 0, speed < 620 {
-            let aimX = clampX(CGFloat(-model.sideBias) * hw * 0.62)
-            let aimY = -hh                       // toward the player's goal
-            let dx = puck.position.x - aimX
-            let dy = puck.position.y - aimY
+        // In its half and strikeable. Sometimes counter-attack at the player's
+        // weak side, otherwise just clear it — relentless aimed returns left
+        // the player with no possession and so no chance to attack.
+        if seen.pos.y > 0, speed < 620 {
+            let aimX: CGFloat
+            if nemAttackRoll < Nem.lerp(Nem.strike, p) {
+                aimX = clampX(CGFloat(-model.sideBias) * hw * 0.62)
+            } else {
+                aimX = 0                            // simple clearance
+            }
+            let dx = seen.pos.x - aimX
+            let dy = seen.pos.y - (-hh)
             let len = max(1, hypot(dx, dy))
             let behind = malletRadius + puckRadius + 4
-            return CGPoint(x: clampX(puck.position.x + dx / len * behind + aiNoiseX),
-                           y: clampY(puck.position.y + dy / len * behind))
+            return CGPoint(x: clampX(seen.pos.x + dx / len * behind),
+                           y: clampY(seen.pos.y + dy / len * behind))
         }
 
         // Puck is with the player: hold the line between it and the net,
@@ -1044,12 +1144,24 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         // deliberately not "shadow the puck's x" — that is what made the
         // other difficulties look like they were mirroring the player.
         let goal = CGPoint(x: CGFloat(model.weakSideBias) * goalWidth * 0.28, y: hh)
-        let dx = goal.x - puck.position.x
-        let dy = goal.y - puck.position.y
+        let dx = goal.x - seen.pos.x
+        let dy = goal.y - seen.pos.y
         let len = max(1, hypot(dx, dy))
-        let guardDepth = hh * 0.30
-        return CGPoint(x: clampX(goal.x - dx / len * guardDepth + aiNoiseX),
+        let guardDepth = hh * Nem.guardDepth
+        return CGPoint(x: clampX(goal.x - dx / len * guardDepth),
                        y: clampY(goal.y - dy / len * guardDepth))
+    }
+
+    /// The puck as it was `delay` seconds ago, from the rolling history.
+    private func puckStateDelayed(by delay: TimeInterval) -> (pos: CGPoint, vel: CGVector)? {
+        guard !puckHistory.isEmpty else { return nil }
+        let cutoff = nemClock - delay
+        // Newest entry at or before the cutoff.
+        var chosen = puckHistory[0]
+        for entry in puckHistory {
+            if entry.t <= cutoff { chosen = entry } else { break }
+        }
+        return (pos: chosen.pos, vel: chosen.vel)
     }
 
     private func triggerGoal(by scorer: Int) {

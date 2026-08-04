@@ -27,14 +27,15 @@ final class PlayerModel {
     /// Completed NEMESIS games, and how many of them the player won.
     private(set) var gamesStudied: Int
     private(set) var playerWins: Int
+    private var dirty = false
 
-    /// How hard NEMESIS presses, 0...1, from the player's record against it.
-    /// Beating NEMESIS makes it tighten up; it eases off a little when it is
-    /// already dominating, so a losing streak doesn't become hopeless.
-    var pressure: Double {
-        guard gamesStudied >= 2 else { return 0.35 }
+    /// Baseline pressure from the player's record, 0...1. The coordinator
+    /// adjusts this during a game from the live score — history alone is far
+    /// too slow a signal, since a game to seven can take minutes.
+    var basePressure: Double {
+        guard gamesStudied >= 2 else { return 0.5 }
         let winRate = Double(playerWins) / Double(gamesStudied)
-        return min(1.0, max(0.15, 0.25 + winRate * 1.1))
+        return min(1.0, max(0.10, 0.20 + winRate * 0.9))
     }
 
     /// The third of its own goal NEMESIS has conceded most through, as an x
@@ -68,6 +69,15 @@ final class PlayerModel {
         bankRate   = min(1, max(0, bankRate))
         sideBias  += (originX - sideBias) * alpha
         shotSpeed += (speed - shotSpeed) * alpha
+        // Deliberately not saved here — shots land several times a rally and
+        // writing defaults mid-play is wasted work. Flushed at each goal.
+        dirty = true
+    }
+
+    /// Persist anything accumulated since the last write.
+    func flush() {
+        guard dirty else { return }
+        dirty = false
         save()
     }
 

@@ -45,6 +45,7 @@ final class GameCoordinator: ObservableObject {
     /// Set once the trial runs dry mid-game; acted on at the next goal so a
     /// rally is never cut off halfway.
     private var nemesisTrialOver = false
+    private var lastPlayerGoal = Date()
     /// nil when no countdown is active. Otherwise the current number being
     /// shown (3, 2, 1). ContentView renders an overlay when non-nil.
     @Published var countdownValue: Int? = nil
@@ -66,12 +67,33 @@ final class GameCoordinator: ObservableObject {
         }
     }
 
+    /// Slide NEMESIS's pressure from how the game is actually going, so it
+    /// converges on a close contest instead of whatever a fixed setting
+    /// happens to be worth against this particular player.
+    private func updateNemesisPressure() {
+        guard gameMode == .vsComputer(.nemesis) else { return }
+        var p = PlayerModel.shared.basePressure
+
+        // Live scoreline: behind means back off, ahead means bear down.
+        p += Double(p1Score - p2Score) * 0.09
+
+        // Shutout valve — if the player simply cannot get on the board,
+        // ease off inside this game rather than waiting for the next one.
+        let dry = Date().timeIntervalSince(lastPlayerGoal)
+        if dry > 150 { p -= 0.30 } else if dry > 75 { p -= 0.15 }
+
+        scene.nemesisPressure = CGFloat(max(0, min(1, p)))
+    }
+
     @MainActor
     private func noteNemesisPlay(_ seconds: TimeInterval) {
         settings.addNemesisTrialTime(seconds)
         if !settings.hasNemesis, settings.nemesisTrialExpired {
             nemesisTrialOver = true
         }
+        // Once a second, so the dry-spell valve can open mid-game rather than
+        // only at the next goal — which may be exactly what isn't happening.
+        updateNemesisPressure()
     }
 
     /// Called after the player buys NEMESIS from the trial-ended screen —
@@ -91,6 +113,8 @@ final class GameCoordinator: ObservableObject {
         p2Score = 0
         state = .playing
         showResult = false
+        lastPlayerGoal = Date()
+        updateNemesisPressure()
         scene.prepareNewGame()
         runCountdown { [weak self] in
             self?.scene.launchGame()
@@ -119,6 +143,9 @@ final class GameCoordinator: ObservableObject {
     private func handleGoal(by scorer: Int) {
         if scorer == 1 { p1Score += 1 } else { p2Score += 1 }
         state = .goalScored(by: scorer)
+        if scorer == 1 { lastPlayerGoal = Date() }
+        updateNemesisPressure()
+        PlayerModel.shared.flush()
 
         // Trial ran out earlier in this game — stop here rather than mid-rally.
         if nemesisTrialOver, !settings.hasNemesis {
