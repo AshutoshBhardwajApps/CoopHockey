@@ -26,6 +26,13 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     private var aiNoiseX: CGFloat = 0
     private var aiNoiseTimer: CGFloat = 0
 
+    // In-flight player shot, watched from strike until it crosses halfway so
+    // PlayerModel can be told whether it was banked off a wall and how hard.
+    private var shotInFlight = false
+    private var shotBanked = false
+    private var shotOriginX: CGFloat = 0
+    private var shotSpeed: CGFloat = 0
+
     private var p1Touch: UITouch?
     private var p2Touch: UITouch?
     // Offset from finger to mallet center at the moment the mallet was grabbed,
@@ -670,6 +677,17 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             }
         }
 
+        // A watched shot completes once it reaches the AI half — that is the
+        // point at which "did it bank on the way over" is settled.
+        if shotInFlight, let puck = puckNode, puck.position.y > 0 {
+            shotInFlight = false
+            PlayerModel.shared.recordShot(
+                originX: Double(shotOriginX / (size.width / 2)),
+                speed: Double(shotSpeed),
+                banked: shotBanked
+            )
+        }
+
         // Fallback positional goal detection (anti-tunnel safety net)
         if let puck = puckNode {
             let py = puck.position.y
@@ -750,6 +768,11 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
                     SFX.shared.playWall()
                     Haptics.shared.wallBounce(intensity: CGFloat(min(0.7, spd / 900)))
                 }
+                // A side wall (not an end wall) mid-shot means this was a bank.
+                if shotInFlight, let pn = puckNode,
+                   abs(pn.position.x) > size.width / 2 - puckRadius * 2.5 {
+                    shotBanked = true
+                }
             }
         }
 
@@ -795,6 +818,14 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             puckBody.velocity = CGVector(dx: pv.dx * s, dy: pv.dy * s)
         }
 
+        // Start watching a player shot that is heading for the AI half.
+        if malletNode === mallet1, puckBody.velocity.dy > 60 {
+            shotInFlight = true
+            shotBanked   = false
+            shotOriginX  = pn.position.x
+            shotSpeed    = hypot(puckBody.velocity.dx, puckBody.velocity.dy)
+        }
+
         // Hit sound — louder for faster strikes
         let malletSpeed = hypot(mv.dx, mv.dy)
         SFX.shared.playHit(speed: malletSpeed + CGFloat(vRel))
@@ -818,9 +849,10 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             let jitter: CGFloat
             let interval: CGFloat
             switch difficulty {
-            case .easy:   jitter = 55; interval = 0.35
-            case .medium: jitter = 14; interval = 0.18
-            case .hard:   jitter =  3; interval = 0.08
+            case .easy:    jitter = 55; interval = 0.35
+            case .medium:  jitter = 14; interval = 0.18
+            case .hard:    jitter =  3; interval = 0.08
+            case .nemesis: jitter =  1; interval = 0.06
             }
             aiNoiseTimer = interval
             aiNoiseX = CGFloat.random(in: -jitter...jitter)
@@ -850,11 +882,21 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             aiSmoothTarget = rawTarget        // skip smoothing — go now
         } else {
             // Normal play
-            rawTarget = aiRawTarget(puck: puck, vel: pv)
-            switch difficulty {
-            case .easy:   responseTime = 0.30; maxSpeed = 195
-            case .medium: responseTime = 0.10; maxSpeed = 385
-            case .hard:   responseTime = 0.03; maxSpeed = 650
+            if difficulty == .nemesis {
+                rawTarget = nemesisTarget(puck: puck, vel: pv)
+                // Pressure earned from the player's record: a player who keeps
+                // winning gets a quicker, faster opponent next time.
+                let p = CGFloat(PlayerModel.shared.pressure)
+                responseTime = 0.030 - 0.014 * p     // 0.030 → 0.016
+                maxSpeed     = 660  + 230   * p      // 660   → 890
+            } else {
+                rawTarget = aiRawTarget(puck: puck, vel: pv)
+                switch difficulty {
+                case .easy:    responseTime = 0.30; maxSpeed = 195
+                case .medium:  responseTime = 0.10; maxSpeed = 385
+                case .hard:    responseTime = 0.03; maxSpeed = 650
+                case .nemesis: responseTime = 0.03; maxSpeed = 650  // handled above
+                }
             }
             let alpha = min(1, dt / responseTime)
             aiSmoothTarget.x += (rawTarget.x - aiSmoothTarget.x) * alpha
@@ -907,10 +949,105 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
         }
     }
 
+    // MARK: - NEMESIS
+
+    /// Where the puck will cross `targetY`, following it through side-wall
+    /// bounces instead of extrapolating in a straight line.
+    ///
+    /// This is what closes the bank-shot hole in the other difficulties:
+    /// `aiRawTarget` projects the puck's current heading and so commits to a
+    /// spot the puck never reaches once it has caromed off a wall. Each bounce
+    /// keeps its full vertical speed but loses lateral speed to restitution
+    /// (wall 0.65 x puck 0.82), so the reflection is modelled, not mirrored.
+    private func predictCrossingX(pos: CGPoint, vel: CGVector,
+                                  targetY: CGFloat, maxBounces: Int) -> CGFloat? {
+        var p = pos
+        var v = vel
+        let limit = size.width / 2 - puckRadius
+        let wallLoss: CGFloat = 0.53
+
+        for _ in 0...maxBounces {
+            guard abs(v.dy) > 1 else { return nil }
+            let t = (targetY - p.y) / v.dy
+            guard t > 0 else { return nil }
+
+            let x = p.x + v.dx * t
+            if abs(x) <= limit { return x }          // clean run to the line
+
+            // A side wall comes first: advance to it, reflect, keep going.
+            guard abs(v.dx) > 1 else { return max(-limit, min(limit, x)) }
+            let wallX: CGFloat = x > 0 ? limit : -limit
+            let tw = (wallX - p.x) / v.dx
+            guard tw > 0, tw < t else { return max(-limit, min(limit, x)) }
+            p = CGPoint(x: wallX, y: p.y + v.dy * tw)
+            v = CGVector(dx: -v.dx * wallLoss, dy: v.dy)
+        }
+        return nil
+    }
+
+    /// NEMESIS's mallet target. Three behaviours, chosen by where the puck is:
+    /// intercept an incoming puck at its true (post-bounce) crossing point,
+    /// strike a reachable puck at the player's weak side, or hold a goalie
+    /// line between the puck and its own net.
+    private func nemesisTarget(puck: SKShapeNode, vel: CGVector) -> CGPoint {
+        let model = PlayerModel.shared
+        let m  = malletRadius + 6
+        let hw = size.width  / 2
+        let hh = size.height / 2
+        let clampX: (CGFloat) -> CGFloat = { max(-hw + m, min(hw - m, $0)) }
+        let clampY: (CGFloat) -> CGFloat = { max(m,        min(hh - m, $0)) }
+
+        let interceptY = hh * 0.42
+        let speed = hypot(vel.dx, vel.dy)
+
+        // Incoming: meet it where it will actually arrive.
+        if vel.dy > 40, puck.position.y < interceptY {
+            // A player who banks a lot earns deeper lookahead.
+            let bounces = model.bankRate > 0.4 ? 3 : 2
+            if let x = predictCrossingX(pos: puck.position, vel: vel,
+                                        targetY: interceptY, maxBounces: bounces) {
+                return CGPoint(x: clampX(x + aiNoiseX), y: clampY(interceptY))
+            }
+        }
+
+        // In its half and slow enough to be struck: aim the return away from
+        // where this player likes to be, instead of just blocking it back.
+        if puck.position.y > 0, speed < 620 {
+            let aimX = clampX(CGFloat(-model.sideBias) * hw * 0.62)
+            let aimY = -hh                       // toward the player's goal
+            let dx = puck.position.x - aimX
+            let dy = puck.position.y - aimY
+            let len = max(1, hypot(dx, dy))
+            let behind = malletRadius + puckRadius + 4
+            return CGPoint(x: clampX(puck.position.x + dx / len * behind + aiNoiseX),
+                           y: clampY(puck.position.y + dy / len * behind))
+        }
+
+        // Puck is with the player: hold the line between it and the net,
+        // shaded toward the third this player scores through most. This is
+        // deliberately not "shadow the puck's x" — that is what made the
+        // other difficulties look like they were mirroring the player.
+        let goal = CGPoint(x: CGFloat(model.weakSideBias) * goalWidth * 0.28, y: hh)
+        let dx = goal.x - puck.position.x
+        let dy = goal.y - puck.position.y
+        let len = max(1, hypot(dx, dy))
+        let guardDepth = hh * 0.30
+        return CGPoint(x: clampX(goal.x - dx / len * guardDepth + aiNoiseX),
+                       y: clampY(goal.y - dy / len * guardDepth))
+    }
+
     private func triggerGoal(by scorer: Int) {
         guard !goalCooldown else { return }
         goalCooldown = true
         isGameRunning = false
+
+        // Which part of its own mouth NEMESIS just got beaten through.
+        if scorer == 1, gameMode == .vsComputer(.nemesis), let puck = puckNode {
+            PlayerModel.shared.recordGoalConceded(
+                x: Double(puck.position.x / max(1, goalWidth / 2))
+            )
+        }
+        shotInFlight = false
 
         puckNode?.physicsBody?.velocity = .zero
         puckNode?.physicsBody?.isDynamic = false

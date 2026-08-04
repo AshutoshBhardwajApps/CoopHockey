@@ -2,9 +2,17 @@ import Foundation
 import Combine
 
 enum AIDifficulty: String, CaseIterable, Equatable {
-    case easy   = "EASY"
-    case medium = "MEDIUM"
-    case hard   = "HARD"
+    case easy    = "EASY"
+    case medium  = "MEDIUM"
+    case hard    = "HARD"
+    case nemesis = "NEMESIS"
+
+    /// Difficulties sold as an in-app purchase rather than shipped unlocked.
+    var isPremium: Bool { self == .nemesis }
+
+    /// The free ladder, in order. NEMESIS is deliberately excluded so the
+    /// home screen can present it separately as a locked tier.
+    static var freeCases: [AIDifficulty] { [.easy, .medium, .hard] }
 }
 
 enum GameMode: Equatable, Identifiable {
@@ -90,6 +98,9 @@ final class GameCoordinator: ObservableObject {
             let winner = p1Score >= target ? 1 : 2
             state = .gameOver(winner: winner)
             settings.registerResult(winner: winner)
+            if gameMode == .vsComputer(.nemesis) {
+                PlayerModel.shared.recordGameFinished(playerWon: winner == 1)
+            }
             HighScoresStore.shared.add(
                 p1Name: settings.player1Name,
                 p2Name: settings.player2Name,

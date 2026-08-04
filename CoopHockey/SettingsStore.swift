@@ -8,6 +8,7 @@ final class SettingsStore: ObservableObject {
     // got stuck in App Store Connect after the 1.3(14) rejection chain;
     // creating a fresh ID lets us re-link the IAP to the build cleanly.
     static let removeAdsProductID = "coophockey.removeads2"
+    static let nemesisProductID   = "coophockey.nemesis"
     static let targetScoreOptions  = [5, 7, 9]
 
     @Published var player1Name: String   { didSet { save() } }
@@ -16,6 +17,7 @@ final class SettingsStore: ObservableObject {
     @Published var musicEnabled: Bool    { didSet { save() } }
     @Published var effectsEnabled: Bool  { didSet { save() } }
     @Published var hasRemovedAds: Bool   { didSet { save() } }
+    @Published var hasNemesis: Bool      { didSet { save() } }
 
     @Published private(set) var totalGamesPlayed: Int
     @Published private(set) var p1WinsTotal: Int
@@ -31,6 +33,7 @@ final class SettingsStore: ObservableObject {
         musicEnabled     = d.object(forKey: "h.music")    as? Bool   ?? true
         effectsEnabled   = d.object(forKey: "h.effects")  as? Bool   ?? true
         hasRemovedAds    = d.bool(forKey: "h.removeAds")
+        hasNemesis       = d.bool(forKey: "h.nemesis")
         totalGamesPlayed = d.integer(forKey: "h.gamesPlayed")
         p1WinsTotal      = d.integer(forKey: "h.p1Wins")
         p2WinsTotal      = d.integer(forKey: "h.p2Wins")
@@ -44,6 +47,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func markRemoveAdsPurchased() { hasRemovedAds = true }
+    func markNemesisPurchased()   { hasNemesis = true }
 
     private func save() {
         let d = UserDefaults.standard
@@ -53,6 +57,7 @@ final class SettingsStore: ObservableObject {
         d.set(musicEnabled,     forKey: "h.music")
         d.set(effectsEnabled,   forKey: "h.effects")
         d.set(hasRemovedAds,    forKey: "h.removeAds")
+        d.set(hasNemesis,       forKey: "h.nemesis")
         d.set(totalGamesPlayed, forKey: "h.gamesPlayed")
         d.set(p1WinsTotal,      forKey: "h.p1Wins")
         d.set(p2WinsTotal,      forKey: "h.p2Wins")

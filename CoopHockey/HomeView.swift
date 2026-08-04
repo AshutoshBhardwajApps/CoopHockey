@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var activeGameMode: GameMode? = nil
     @State private var showDifficulty = false
     @State private var showRemoveAdsSheet = false
+    @State private var showNemesisSheet = false
 
     var body: some View {
         NavigationStack {
@@ -80,7 +81,7 @@ struct HomeView: View {
                                 .foregroundColor(.white.opacity(0.5))
                                 .tracking(2)
 
-                            ForEach(AIDifficulty.allCases, id: \.self) { diff in
+                            ForEach(AIDifficulty.freeCases, id: \.self) { diff in
                                 Button {
                                     activeGameMode = .vsComputer(diff)
                                 } label: {
@@ -89,6 +90,22 @@ struct HomeView: View {
                                         color: difficultyColor(diff)
                                     )
                                 }
+                            }
+
+                            // NEMESIS: plays straight through once bought,
+                            // otherwise opens its store page.
+                            Button {
+                                if settings.hasNemesis {
+                                    activeGameMode = .vsComputer(.nemesis)
+                                } else {
+                                    showNemesisSheet = true
+                                }
+                            } label: {
+                                HomeButtonLabel(
+                                    title: AIDifficulty.nemesis.rawValue,
+                                    color: Theme.nemesisColor,
+                                    locked: !settings.hasNemesis
+                                )
                             }
 
                             Button {
@@ -181,13 +198,19 @@ struct HomeView: View {
                 .environmentObject(settings)
                 .environmentObject(purchaseManager)
         }
+        .fullScreenCover(isPresented: $showNemesisSheet) {
+            NemesisUnlockView(onDismiss: { showNemesisSheet = false })
+                .environmentObject(settings)
+                .environmentObject(purchaseManager)
+        }
     }
 
     private func difficultyColor(_ diff: AIDifficulty) -> Color {
         switch diff {
-        case .easy:   return Color(red: 0.2, green: 0.75, blue: 0.3)
-        case .medium: return Color(red: 1.0, green: 0.65, blue: 0.0)
-        case .hard:   return Color(red: 0.9, green: 0.2,  blue: 0.2)
+        case .easy:    return Color(red: 0.2, green: 0.75, blue: 0.3)
+        case .medium:  return Color(red: 1.0, green: 0.65, blue: 0.0)
+        case .hard:    return Color(red: 0.9, green: 0.2,  blue: 0.2)
+        case .nemesis: return Theme.nemesisColor
         }
     }
 }
@@ -195,14 +218,21 @@ struct HomeView: View {
 private struct HomeButtonLabel: View {
     let title: String
     let color: Color
+    var locked: Bool = false
 
     var body: some View {
-        Text(title)
-            .font(.system(size: 22, weight: .black))
-            .foregroundColor(.black)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(color)
-            .cornerRadius(16)
+        HStack(spacing: 8) {
+            if locked {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 17, weight: .black))
+            }
+            Text(title)
+                .font(.system(size: 22, weight: .black))
+        }
+        .foregroundColor(.black)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(color)
+        .cornerRadius(16)
     }
 }
