@@ -41,6 +41,10 @@ final class GameCoordinator: ObservableObject {
     @Published var state: GameState = .idle
     @Published var showResult = false
     @Published var showRemoveAdsPromo = false
+    @Published var showNemesisUnlock = false
+    /// Set once the trial runs dry mid-game; acted on at the next goal so a
+    /// rally is never cut off halfway.
+    private var nemesisTrialOver = false
     /// nil when no countdown is active. Otherwise the current number being
     /// shown (3, 2, 1). ContentView renders an overlay when non-nil.
     @Published var countdownValue: Int? = nil
@@ -57,6 +61,29 @@ final class GameCoordinator: ObservableObject {
         scene.onGoalScored = { [weak self] scorer in
             Task { @MainActor [weak self] in self?.handleGoal(by: scorer) }
         }
+        scene.onNemesisTrialTick = { [weak self] seconds in
+            Task { @MainActor [weak self] in self?.noteNemesisPlay(seconds) }
+        }
+    }
+
+    @MainActor
+    private func noteNemesisPlay(_ seconds: TimeInterval) {
+        settings.addNemesisTrialTime(seconds)
+        if !settings.hasNemesis, settings.nemesisTrialExpired {
+            nemesisTrialOver = true
+        }
+    }
+
+    /// Called after the player buys NEMESIS from the trial-ended screen —
+    /// picks play back up from the goal that interrupted it.
+    @MainActor
+    func resumeAfterNemesisPurchase() {
+        nemesisTrialOver = false
+        scene.resumeGame()
+        if case .goalScored(let scorer) = state {
+            scene.resumeAfterGoal(towardPlayer: scorer)
+        }
+        state = .playing
     }
 
     func startGame() {
@@ -92,6 +119,14 @@ final class GameCoordinator: ObservableObject {
     private func handleGoal(by scorer: Int) {
         if scorer == 1 { p1Score += 1 } else { p2Score += 1 }
         state = .goalScored(by: scorer)
+
+        // Trial ran out earlier in this game — stop here rather than mid-rally.
+        if nemesisTrialOver, !settings.hasNemesis {
+            settings.flushNemesisTrial()
+            scene.pauseGame()
+            showNemesisUnlock = true
+            return
+        }
 
         let target = settings.targetScore
         if p1Score >= target || p2Score >= target {

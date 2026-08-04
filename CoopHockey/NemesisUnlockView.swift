@@ -7,6 +7,10 @@ struct NemesisUnlockView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var purchaseManager: PurchaseManager
 
+    /// True when shown because the free trial just ran out, rather than from
+    /// the menu. Changes the framing from "here's what it is" to "here's what
+    /// you've been playing".
+    var trialEnded: Bool = false
     let onDismiss: () -> Void
 
     @State private var purchasing = false
@@ -34,7 +38,7 @@ struct NemesisUnlockView: View {
                     .shadow(color: Theme.nemesisColor.opacity(0.7), radius: 20)
 
                 VStack(spacing: 8) {
-                    Text("NEW DIFFICULTY")
+                    Text(trialEnded ? "FREE TRIAL OVER" : "NEW DIFFICULTY")
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.white.opacity(0.5))
                         .tracking(3)
@@ -42,6 +46,13 @@ struct NemesisUnlockView: View {
                         .font(.system(size: 42, weight: .black))
                         .foregroundColor(.white)
                         .tracking(2)
+                    if trialEnded {
+                        Text("Keep the opponent that has been learning you.")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 2)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
@@ -99,7 +110,7 @@ struct NemesisUnlockView: View {
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.5))
 
-                    Button("Not now") { onDismiss() }
+                    Button(trialEnded ? "Back to menu" : "Not now") { onDismiss() }
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(.white.opacity(0.7))
                         .padding(.top, 2)

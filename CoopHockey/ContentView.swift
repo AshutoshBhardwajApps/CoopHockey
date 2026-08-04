@@ -104,6 +104,26 @@ struct ContentView: View {
             })
             .environmentObject(settings)
         }
+        .fullScreenCover(isPresented: $coordinator.showNemesisUnlock) {
+            NemesisUnlockView(trialEnded: true, onDismiss: {
+                coordinator.showNemesisUnlock = false
+                if settings.hasNemesis {
+                    // Bought it mid-game — carry on from the goal that stopped play.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        coordinator.resumeAfterNemesisPurchase()
+                    }
+                } else {
+                    // Same delay as the ad-dismiss path: letting this cover
+                    // finish animating out before dismissing the game view
+                    // avoids the two dismissals racing into a blank screen.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        dismiss()
+                    }
+                }
+            })
+            .environmentObject(settings)
+            .environmentObject(purchaseManager)
+        }
         .fullScreenCover(isPresented: $coordinator.showRemoveAdsPromo) {
             RemoveAdsPromoView(onDismiss: {
                 coordinator.showRemoveAdsPromo = false

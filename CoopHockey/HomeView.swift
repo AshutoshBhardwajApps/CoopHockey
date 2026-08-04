@@ -8,6 +8,9 @@ struct HomeView: View {
     @State private var showDifficulty = false
     @State private var showRemoveAdsSheet = false
     @State private var showNemesisSheet = false
+    /// Mirrored into @State because SettingsStore doesn't publish the trial
+    /// clock — refreshed whenever this screen comes back into view.
+    @State private var trialRemaining: Int = 0
 
     var body: some View {
         NavigationStack {
@@ -92,10 +95,10 @@ struct HomeView: View {
                                 }
                             }
 
-                            // NEMESIS: plays straight through once bought,
-                            // otherwise opens its store page.
+                            // NEMESIS: free until the trial is spent, then the
+                            // button becomes the store page.
                             Button {
-                                if settings.hasNemesis {
+                                if settings.canPlayNemesis {
                                     activeGameMode = .vsComputer(.nemesis)
                                 } else {
                                     showNemesisSheet = true
@@ -104,7 +107,8 @@ struct HomeView: View {
                                 HomeButtonLabel(
                                     title: AIDifficulty.nemesis.rawValue,
                                     color: Theme.nemesisColor,
-                                    locked: !settings.hasNemesis
+                                    locked: !settings.canPlayNemesis,
+                                    badge: nemesisBadge
                                 )
                             }
 
@@ -185,9 +189,12 @@ struct HomeView: View {
             .onAppear {
                 if settings.musicEnabled { BGM.shared.play(volume: 0.20) } else { BGM.shared.stop() }
                 showDifficulty = false
+                trialRemaining = Int(settings.nemesisTrialRemaining)
             }
         }
-        .fullScreenCover(item: $activeGameMode) { mode in
+        .fullScreenCover(item: $activeGameMode, onDismiss: {
+            trialRemaining = Int(settings.nemesisTrialRemaining)
+        }) { mode in
             ContentView(gameMode: mode)
                 .environmentObject(settings)
                 .environmentObject(scores)
@@ -205,6 +212,17 @@ struct HomeView: View {
         }
     }
 
+    /// Trial state under the NEMESIS button: how much free play is left, or
+    /// nothing at all once it's bought.
+    private var nemesisBadge: String? {
+        if settings.hasNemesis { return nil }
+        let left = trialRemaining
+        if left <= 0 { return "TRIAL ENDED" }
+        if left >= Int(SettingsStore.nemesisTrialLimit) { return "FREE · 15 MIN" }
+        if left < 60 { return "UNDER 1 MIN LEFT" }
+        return "\(Int(ceil(Double(left) / 60))) MIN LEFT"
+    }
+
     private func difficultyColor(_ diff: AIDifficulty) -> Color {
         switch diff {
         case .easy:    return Color(red: 0.2, green: 0.75, blue: 0.3)
@@ -219,19 +237,28 @@ private struct HomeButtonLabel: View {
     let title: String
     let color: Color
     var locked: Bool = false
+    var badge: String? = nil
 
     var body: some View {
-        HStack(spacing: 8) {
-            if locked {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 17, weight: .black))
+        VStack(spacing: 2) {
+            HStack(spacing: 8) {
+                if locked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 17, weight: .black))
+                }
+                Text(title)
+                    .font(.system(size: 22, weight: .black))
             }
-            Text(title)
-                .font(.system(size: 22, weight: .black))
+            if let badge {
+                Text(badge)
+                    .font(.system(size: 11, weight: .heavy))
+                    .tracking(1)
+                    .opacity(0.65)
+            }
         }
         .foregroundColor(.black)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .padding(.vertical, badge == nil ? 18 : 13)
         .background(color)
         .cornerRadius(16)
     }

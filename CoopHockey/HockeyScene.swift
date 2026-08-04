@@ -10,6 +10,10 @@ private struct Physics {
 final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
     var onGoalScored: ((Int) -> Void)?
+    /// Fires once per second of live NEMESIS play so the free trial only
+    /// burns while the puck is actually moving.
+    var onNemesisTrialTick: ((TimeInterval) -> Void)?
+    private var nemesisTrialAccum: CGFloat = 0
 
     private var puckNode: SKShapeNode!
     private var mallet1: SKShapeNode!
@@ -610,6 +614,18 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
 
         let dt = CGFloat(lastUpdateTime == 0 ? 0.016 : min(currentTime - lastUpdateTime, 0.05))
         lastUpdateTime = currentTime
+
+        // This point is only reached while play is live (the guard above rules
+        // out pauses, goal cooldowns and the pre-puck countdown), so it is the
+        // right place to meter the trial.
+        if gameMode == .vsComputer(.nemesis) {
+            nemesisTrialAccum += dt
+            if nemesisTrialAccum >= 1 {
+                let whole = floor(nemesisTrialAccum)
+                nemesisTrialAccum -= whole
+                onNemesisTrialTick?(TimeInterval(whole))
+            }
+        }
 
         // Frame-rate-independent inertia decay (~0.4 s to stop)
         let decay = CGFloat(pow(0.88, Double(dt) * 60.0))
