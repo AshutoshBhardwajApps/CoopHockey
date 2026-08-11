@@ -66,7 +66,11 @@ struct SettingsView: View {
                     settings.resetNemesisTrial()
                     PlayerModel.shared.reset()
                 }
-                Text("Trial left: \(Int(settings.nemesisTrialRemaining / 60)) min · "
+                Button("Expire trial now (jump to paywall)") {
+                    settings.expireNemesisTrial()
+                }
+                Text("Credits: \(settings.nemesisGameCredits) · "
+                     + "Trial left: \(Int(settings.nemesisTrialRemaining / 60)) min · "
                      + "studied \(PlayerModel.shared.gamesStudied) games · "
                      + "history offset \(String(format: "%+.2f", PlayerModel.shared.historyOffset))")
                     .font(.caption2)

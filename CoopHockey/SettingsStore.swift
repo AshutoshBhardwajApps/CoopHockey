@@ -77,6 +77,14 @@ final class SettingsStore: ObservableObject {
 
     #if DEBUG
     /// Playtesting helper — hand the 15 minutes back.
+    /// Jump straight to the paywall without playing out the 15 minutes.
+    func expireNemesisTrial() {
+        nemesisTrialUsed = Self.nemesisTrialLimit
+        trialUnsaved = 0
+        UserDefaults.standard.set(nemesisTrialUsed, forKey: "h.nemesisTrial")
+        save()
+    }
+
     func resetNemesisTrial() {
         nemesisTrialUsed = 0
         trialUnsaved = 0
