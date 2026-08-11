@@ -152,8 +152,8 @@ struct HomeView: View {
                     .padding(.bottom, 16)
 
                     // Win counter
-                    if settings.totalWins > 0 {
-                        Text("Total wins: \(settings.totalWins)  •  Games: \(settings.totalGamesPlayed)")
+                    if settings.totalGamesPlayed > 0 {
+                        Text("Games: \(settings.totalGamesPlayed)  •  P1 \(settings.p1WinsTotal)  –  P2 \(settings.p2WinsTotal)")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }

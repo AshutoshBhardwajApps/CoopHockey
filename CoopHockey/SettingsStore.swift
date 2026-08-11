@@ -27,7 +27,9 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var p1WinsTotal: Int
     @Published private(set) var p2WinsTotal: Int
 
-    var totalWins: Int { p1WinsTotal + p2WinsTotal }
+    // Deliberately no `totalWins`: every game has a winner, so the sum of the
+    // two counters is just the number of games played. Displaying it beside
+    // "Games" made the two figures identical and looked like a bug.
 
     /// Trial seconds already spent. Deliberately *not* @Published: it ticks
     /// once a second during play, and republishing would re-render the live
