@@ -132,10 +132,11 @@ struct NemesisUnlockView: View {
                                 ProgressView().tint(.black)
                             } else {
                                 Text("UNLOCK NEMESIS")
-                                if let price = purchaseManager.nemesisPrice {
+                                // Only ever show StoreKit's own localized price. A
+                            // hardcoded "$1.99" would be wrong for every
+                            // storefront outside the US — including yours.
+                            if let price = purchaseManager.nemesisPrice {
                                     Text("· \(price)").foregroundColor(.black.opacity(0.65))
-                                } else {
-                                    Text("· $1.99").foregroundColor(.black.opacity(0.65))
                                 }
                             }
                         }
