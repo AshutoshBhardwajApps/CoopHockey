@@ -17,6 +17,9 @@ struct NemesisUnlockView: View {
     @State private var purchasing = false
     @State private var watchingAd = false
     @State private var adMessage: String?
+    /// Set once we've waited long enough that "PREPARING AD…" has stopped
+    /// being an explanation and started being a dead end.
+    @State private var adWaitTimedOut = false
 
     private var studied: Int { PlayerModel.shared.gamesStudied }
 
@@ -84,6 +87,13 @@ struct NemesisUnlockView: View {
                     // attention, and rewarded views are worth more per head
                     // than an interstitial anyway.
                     Button {
+                        guard ads.isRewardedReady else {
+                            // Timed-out state: let them retry rather than
+                            // stare at a spinner that may never resolve.
+                            adMessage = "Still no ad available. Check back shortly, or unlock below."
+                            AdManager.shared.preloadRewarded()
+                            return
+                        }
                         watchingAd = true
                         AdManager.shared.presentRewarded { outcome in
                             watchingAd = false
@@ -104,6 +114,9 @@ struct NemesisUnlockView: View {
                             } else if ads.isRewardedReady {
                                 Image(systemName: "play.rectangle.fill")
                                 Text("WATCH AD · PLAY A GAME")
+                            } else if adWaitTimedOut {
+                                Image(systemName: "arrow.clockwise")
+                                Text("TRY AGAIN")
                             } else {
                                 ProgressView().tint(.white.opacity(0.6))
                                 Text("PREPARING AD…")
@@ -118,7 +131,7 @@ struct NemesisUnlockView: View {
                                 .stroke(Theme.nemesisColor.opacity(0.8), lineWidth: 1.5)
                         )
                     }
-                    .disabled(watchingAd || purchasing || !ads.isRewardedReady)
+                    .disabled(watchingAd || purchasing || (!ads.isRewardedReady && !adWaitTimedOut))
 
                     if let adMessage {
                         Text(adMessage)
@@ -183,6 +196,9 @@ struct NemesisUnlockView: View {
         .task {
             await purchaseManager.loadProducts()
             AdManager.shared.preloadRewarded()
+            // Give it a fair run, then stop pretending something is coming.
+            try? await Task.sleep(nanoseconds: 12_000_000_000)
+            if !AdManager.shared.isRewardedReady { adWaitTimedOut = true }
         }
     }
 }
