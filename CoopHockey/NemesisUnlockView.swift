@@ -14,6 +14,8 @@ struct NemesisUnlockView: View {
     let onDismiss: () -> Void
 
     @State private var purchasing = false
+    @State private var watchingAd = false
+    @State private var adMessage: String?
 
     private var studied: Int { PlayerModel.shared.gamesStudied }
 
@@ -77,6 +79,46 @@ struct NemesisUnlockView: View {
                 Spacer()
 
                 VStack(spacing: 12) {
+                    // Free path first — it costs the player nothing but
+                    // attention, and rewarded views are worth more per head
+                    // than an interstitial anyway.
+                    Button {
+                        watchingAd = true
+                        AdManager.shared.presentRewarded { earned in
+                            watchingAd = false
+                            if earned {
+                                settings.grantNemesisGame()
+                                onDismiss()
+                            } else {
+                                adMessage = "No game earned — the ad needs to finish."
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if watchingAd {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: "play.rectangle.fill")
+                                Text("WATCH AD · PLAY A GAME")
+                            }
+                        }
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Theme.nemesisColor.opacity(0.8), lineWidth: 1.5)
+                        )
+                    }
+                    .disabled(watchingAd || purchasing)
+
+                    if let adMessage {
+                        Text(adMessage)
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+
                     Button {
                         purchasing = true
                         Task {
@@ -92,6 +134,8 @@ struct NemesisUnlockView: View {
                                 Text("UNLOCK NEMESIS")
                                 if let price = purchaseManager.nemesisPrice {
                                     Text("· \(price)").foregroundColor(.black.opacity(0.65))
+                                } else {
+                                    Text("· $1.99").foregroundColor(.black.opacity(0.65))
                                 }
                             }
                         }
@@ -128,7 +172,10 @@ struct NemesisUnlockView: View {
                 Spacer(minLength: 12)
             }
         }
-        .task { await purchaseManager.loadProducts() }
+        .task {
+            await purchaseManager.loadProducts()
+            AdManager.shared.preloadRewarded()
+        }
     }
 }
 

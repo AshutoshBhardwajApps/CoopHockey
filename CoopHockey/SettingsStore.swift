@@ -39,7 +39,32 @@ final class SettingsStore: ObservableObject {
         max(0, Self.nemesisTrialLimit - nemesisTrialUsed)
     }
     var nemesisTrialExpired: Bool { nemesisTrialRemaining <= 0 }
-    var canPlayNemesis: Bool { hasNemesis || !nemesisTrialExpired }
+
+    /// How the player is getting into a NEMESIS game right now.
+    enum NemesisAccess { case owned, trial, credit, locked }
+
+    var nemesisAccess: NemesisAccess {
+        if hasNemesis { return .owned }
+        if !nemesisTrialExpired { return .trial }
+        if nemesisGameCredits > 0 { return .credit }
+        return .locked
+    }
+    var canPlayNemesis: Bool { nemesisAccess != .locked }
+
+    /// Games earned by watching rewarded ads. One ad, one game — spent when
+    /// a game actually begins.
+    @Published private(set) var nemesisGameCredits: Int
+
+    func grantNemesisGame() {
+        nemesisGameCredits += 1
+        save()
+    }
+
+    func spendNemesisGame() {
+        guard nemesisGameCredits > 0 else { return }
+        nemesisGameCredits -= 1
+        save()
+    }
 
     func addNemesisTrialTime(_ seconds: TimeInterval) {
         guard !hasNemesis else { return }
@@ -55,7 +80,9 @@ final class SettingsStore: ObservableObject {
     func resetNemesisTrial() {
         nemesisTrialUsed = 0
         trialUnsaved = 0
+        nemesisGameCredits = 0
         UserDefaults.standard.set(0.0, forKey: "h.nemesisTrial")
+        save()
     }
     #endif
 
@@ -75,6 +102,7 @@ final class SettingsStore: ObservableObject {
         hasRemovedAds    = d.bool(forKey: "h.removeAds")
         hasNemesis       = d.bool(forKey: "h.nemesis")
         nemesisTrialUsed = d.double(forKey: "h.nemesisTrial")
+        nemesisGameCredits = d.integer(forKey: "h.nemesisCredits")
         totalGamesPlayed = d.integer(forKey: "h.gamesPlayed")
         p1WinsTotal      = d.integer(forKey: "h.p1Wins")
         p2WinsTotal      = d.integer(forKey: "h.p2Wins")
@@ -100,6 +128,7 @@ final class SettingsStore: ObservableObject {
         d.set(hasRemovedAds,    forKey: "h.removeAds")
         d.set(hasNemesis,       forKey: "h.nemesis")
         d.set(nemesisTrialUsed, forKey: "h.nemesisTrial")
+        d.set(nemesisGameCredits, forKey: "h.nemesisCredits")
         d.set(totalGamesPlayed, forKey: "h.gamesPlayed")
         d.set(p1WinsTotal,      forKey: "h.p1Wins")
         d.set(p2WinsTotal,      forKey: "h.p2Wins")

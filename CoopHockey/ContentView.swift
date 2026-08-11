@@ -107,10 +107,11 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $coordinator.showNemesisUnlock) {
             NemesisUnlockView(trialEnded: true, onDismiss: {
                 coordinator.showNemesisUnlock = false
-                if settings.hasNemesis {
-                    // Bought it mid-game — carry on from the goal that stopped play.
+                // Bought outright *or* earned a game from an ad — either way
+                // they have access now and should get the game they came for.
+                if settings.canPlayNemesis {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        coordinator.resumeAfterNemesisPurchase()
+                        coordinator.resumeOrRestartNemesis()
                     }
                 } else {
                     // Same delay as the ad-dismiss path: letting this cover

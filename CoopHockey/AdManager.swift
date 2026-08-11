@@ -24,10 +24,23 @@ final class AdManager: NSObject, ObservableObject {
     /// other games — this is a floor, not a ceiling.
     private let forcePromoEvery: Int = 8
 
+    /// Rewarded unit — one view grants one NEMESIS game.
+    ///
+    /// TODO: replace with the real unit ID once it is created in AdMob
+    /// (Ad units → Add ad unit → Rewarded). This is Google's public rewarded
+    /// *test* ID, so the whole flow works end to end today and simply serves
+    /// test ads; shipping with it would earn nothing.
+    private let rewardedID = "ca-app-pub-3940256099942544/1712485313"
+
     private var lastShown: Date?
     private var roundsSinceLastAd = 0
     private var gamesSincePromo = 0
     private var interstitial: InterstitialAd?
+    private var rewarded: RewardedAd?
+    private var rewardedLoading = false
+    private var presentingRewarded = false
+    private var rewardEarned = false
+    private var rewardCompletion: ((Bool) -> Void)?
 
     private override init() { super.init() }
 
@@ -49,6 +62,48 @@ final class AdManager: NSObject, ObservableObject {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in self?.preload() }
             }
         }
+    }
+
+    // MARK: - Rewarded
+
+    /// Deliberately NOT gated on `adsDisabled`. Remove Ads buys freedom from
+    /// *forced* interstitials; a rewarded ad is a trade the player chooses to
+    /// make, and cutting it off would leave paying customers unable to earn
+    /// NEMESIS games at all.
+    func preloadRewarded() {
+        guard rewarded == nil, !rewardedLoading else { return }
+        rewardedLoading = true
+        RewardedAd.load(with: rewardedID, request: Request()) { [weak self] ad, error in
+            guard let self else { return }
+            self.rewardedLoading = false
+            if let ad {
+                ad.fullScreenContentDelegate = self
+                self.rewarded = ad
+                print("[AdManager] ✅ rewarded loaded")
+            } else {
+                print("[AdManager] ❌ rewarded load failed: \(error?.localizedDescription ?? "unknown")")
+            }
+        }
+    }
+
+    var isRewardedReady: Bool { rewarded != nil }
+
+    /// Shows the rewarded ad. `completion(true)` only if the reward was
+    /// actually earned — dismissing early must not grant a free game.
+    func presentRewarded(completion: @escaping (Bool) -> Void) {
+        guard let ad = rewarded, let rootVC = Self.presenterVC() else {
+            preloadRewarded()
+            completion(false)
+            return
+        }
+        rewarded = nil
+        rewardEarned = false
+        presentingRewarded = true
+        rewardCompletion = completion
+        ad.present(from: rootVC) { [weak self] in
+            self?.rewardEarned = true
+        }
+        preloadRewarded()   // have the next one ready
     }
 
     // MARK: - Round tracking
@@ -143,9 +198,23 @@ extension AdManager: FullScreenContentDelegate {
         NotificationCenter.default.post(name: .adWillPresent, object: nil)
     }
     func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        if finishRewardedIfNeeded() { return }
         NotificationCenter.default.post(name: .adDidDismiss, object: nil)
     }
     func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
+        if finishRewardedIfNeeded() { return }
         NotificationCenter.default.post(name: .adDidDismiss, object: nil)
+    }
+
+    /// Rewarded ads settle through their own completion rather than the
+    /// interstitial notifications, which drive the post-game result sheet.
+    private func finishRewardedIfNeeded() -> Bool {
+        guard presentingRewarded else { return false }
+        presentingRewarded = false
+        let earned = rewardEarned
+        let done = rewardCompletion
+        rewardCompletion = nil
+        done?(earned)
+        return true
     }
 }

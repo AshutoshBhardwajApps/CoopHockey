@@ -106,17 +106,41 @@ final class GameCoordinator: ObservableObject {
 
     /// Called after the player buys NEMESIS from the trial-ended screen —
     /// picks play back up from the goal that interrupted it.
+    /// Called once the player has regained access — bought NEMESIS, or earned
+    /// a game with a rewarded ad — from the screen that blocked them.
+    ///
+    /// Two different situations arrive here: the trial ran out *during* a game
+    /// (resume it), or they were refused a new one (start it). Getting this
+    /// wrong means someone watches an ad and is dropped back to the menu.
     @MainActor
-    func resumeAfterNemesisPurchase() {
+    func resumeOrRestartNemesis() {
         nemesisTrialOver = false
         scene.resumeGame()
+
         if case .goalScored(let scorer) = state {
+            if settings.nemesisAccess == .credit { settings.spendNemesisGame() }
             scene.resumeAfterGoal(towardPlayer: scorer)
+            state = .playing
+        } else {
+            startGame()   // pays its own entry toll
         }
-        state = .playing
     }
 
     func startGame() {
+        // Entry check lives here so every route in — first launch, Play Again,
+        // resuming after an ad — pays the same toll.
+        if gameMode == .vsComputer(.nemesis) {
+            switch settings.nemesisAccess {
+            case .locked:
+                showNemesisUnlock = true
+                return
+            case .credit:
+                settings.spendNemesisGame()
+            case .owned, .trial:
+                break
+            }
+        }
+
         p1Score = 0
         p2Score = 0
         state = .playing

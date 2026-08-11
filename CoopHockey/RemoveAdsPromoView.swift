@@ -49,7 +49,7 @@ struct RemoveAdsPromoView: View {
                 }
 
                 VStack(spacing: 14) {
-                    Text("Skip the ads forever.")
+                    Text("No more ads between games.")
                         .font(.system(size: 19, weight: .semibold))
                         .foregroundColor(.white.opacity(0.92))
 

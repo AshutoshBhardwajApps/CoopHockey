@@ -217,10 +217,14 @@ struct HomeView: View {
     private var nemesisBadge: String? {
         if settings.hasNemesis { return nil }
         let left = trialRemaining
-        if left <= 0 { return "TRIAL ENDED" }
-        if left >= Int(SettingsStore.nemesisTrialLimit) { return "FREE · 15 MIN" }
-        if left < 60 { return "UNDER 1 MIN LEFT" }
-        return "\(Int(ceil(Double(left) / 60))) MIN LEFT"
+        if left > 0 {
+            if left >= Int(SettingsStore.nemesisTrialLimit) { return "FREE · 15 MIN" }
+            if left < 60 { return "UNDER 1 MIN LEFT" }
+            return "\(Int(ceil(Double(left) / 60))) MIN LEFT"
+        }
+        let credits = settings.nemesisGameCredits
+        if credits > 0 { return credits == 1 ? "1 GAME READY" : "\(credits) GAMES READY" }
+        return "WATCH AD OR UNLOCK"
     }
 
     private func difficultyColor(_ diff: AIDifficulty) -> Color {
