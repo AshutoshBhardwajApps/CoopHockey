@@ -13,6 +13,7 @@ struct NemesisUnlockView: View {
     var trialEnded: Bool = false
     let onDismiss: () -> Void
 
+    @ObservedObject private var ads = AdManager.shared
     @State private var purchasing = false
     @State private var watchingAd = false
     @State private var adMessage: String?
@@ -100,13 +101,16 @@ struct NemesisUnlockView: View {
                         HStack(spacing: 8) {
                             if watchingAd {
                                 ProgressView().tint(.white)
-                            } else {
+                            } else if ads.isRewardedReady {
                                 Image(systemName: "play.rectangle.fill")
                                 Text("WATCH AD · PLAY A GAME")
+                            } else {
+                                ProgressView().tint(.white.opacity(0.6))
+                                Text("PREPARING AD…")
                             }
                         }
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.white.opacity(ads.isRewardedReady ? 1 : 0.55))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
                         .background(
@@ -114,7 +118,7 @@ struct NemesisUnlockView: View {
                                 .stroke(Theme.nemesisColor.opacity(0.8), lineWidth: 1.5)
                         )
                     }
-                    .disabled(watchingAd || purchasing)
+                    .disabled(watchingAd || purchasing || !ads.isRewardedReady)
 
                     if let adMessage {
                         Text(adMessage)

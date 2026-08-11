@@ -85,6 +85,7 @@ final class AdManager: NSObject, ObservableObject {
             if let ad {
                 ad.fullScreenContentDelegate = self
                 self.rewarded = ad
+                self.isRewardedReady = true
                 print("[AdManager] ✅ rewarded loaded")
             } else {
                 print("[AdManager] ❌ rewarded load failed: \(error?.localizedDescription ?? "unknown") — retry in 10s")
@@ -95,7 +96,9 @@ final class AdManager: NSObject, ObservableObject {
         }
     }
 
-    var isRewardedReady: Bool { rewarded != nil }
+    /// Published so the unlock screen can show a "preparing" state instead of
+    /// letting the player tap into a failure while the video is still loading.
+    @Published private(set) var isRewardedReady = false
 
     /// Shows the rewarded ad. `completion(true)` only if the reward was
     /// actually earned — dismissing early must not grant a free game.
@@ -106,6 +109,7 @@ final class AdManager: NSObject, ObservableObject {
             return
         }
         rewarded = nil
+        isRewardedReady = false
         rewardEarned = false
         presentingRewarded = true
         rewardCompletion = completion

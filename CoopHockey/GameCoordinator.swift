@@ -46,6 +46,9 @@ final class GameCoordinator: ObservableObject {
     /// rally is never cut off halfway.
     private var nemesisTrialOver = false
     private var lastPlayerGoal = Date()
+    /// How the game currently in progress was paid for. A credited or owned
+    /// game is immune to the trial clock; only a trial game answers to it.
+    private var nemesisEntryMode: SettingsStore.NemesisAccess = .owned
     /// nil when no countdown is active. Otherwise the current number being
     /// shown (3, 2, 1). ContentView renders an overlay when non-nil.
     @Published var countdownValue: Int? = nil
@@ -96,7 +99,12 @@ final class GameCoordinator: ObservableObject {
     @MainActor
     private func noteNemesisPlay(_ seconds: TimeInterval) {
         settings.addNemesisTrialTime(seconds)
-        if !settings.hasNemesis, settings.nemesisTrialExpired {
+        // Only a game being played ON the trial can be cut short by the trial
+        // running out. A game paid for with an ad credit is already bought and
+        // must run to its end — checking `nemesisTrialExpired` alone meant the
+        // flag switched straight back on a second after resuming, so an earned
+        // game ended at the very next goal.
+        if nemesisEntryMode == .trial, !settings.hasNemesis, settings.nemesisTrialExpired {
             nemesisTrialOver = true
         }
         // Once a second, so the dry-spell valve can open mid-game rather than
@@ -118,6 +126,9 @@ final class GameCoordinator: ObservableObject {
         scene.resumeGame()
 
         if case .goalScored(let scorer) = state {
+            // The rest of this game is now paid for by whatever they just did,
+            // so it stops answering to the trial clock.
+            nemesisEntryMode = settings.nemesisAccess
             if settings.nemesisAccess == .credit { settings.spendNemesisGame() }
             scene.resumeAfterGoal(towardPlayer: scorer)
             state = .playing
@@ -130,7 +141,8 @@ final class GameCoordinator: ObservableObject {
         // Entry check lives here so every route in — first launch, Play Again,
         // resuming after an ad — pays the same toll.
         if gameMode == .vsComputer(.nemesis) {
-            switch settings.nemesisAccess {
+            let access = settings.nemesisAccess
+            switch access {
             case .locked:
                 showNemesisUnlock = true
                 return
@@ -139,6 +151,8 @@ final class GameCoordinator: ObservableObject {
             case .owned, .trial:
                 break
             }
+            nemesisEntryMode = access
+            nemesisTrialOver = false
         }
 
         p1Score = 0
