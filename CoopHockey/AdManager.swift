@@ -25,9 +25,16 @@ final class AdManager: NSObject, ObservableObject {
     private let forcePromoEvery: Int = 8
 
     /// Rewarded unit — one view grants one NEMESIS game.
-    /// Real production ID; the devices listed in AppDelegate's
-    /// testDeviceIdentifiers still receive test ads from it.
+    ///
+    /// Debug builds use Google's always-filling rewarded test unit. A newly
+    /// created AdMob unit answers "No ad to show" for hours, which blocks
+    /// testing the earn-a-game flow entirely. Release always uses the real
+    /// unit, so shipping behaviour is unaffected.
+    #if DEBUG
+    private let rewardedID = "ca-app-pub-3940256099942544/1712485313"
+    #else
     private let rewardedID = "ca-app-pub-2320635595451132/2857049425"
+    #endif
 
     private var lastShown: Date?
     private var roundsSinceLastAd = 0
