@@ -80,7 +80,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             if #available(iOS 14, *) {
                 ATTrackingManager.requestTrackingAuthorization { status in
                     FBAdSettings.setAdvertiserTrackingEnabled(status == .authorized)
-                    Task { @MainActor in AdManager.shared.preload() }
+                    Task { @MainActor in
+                        AdManager.shared.preload()
+                        // Warm the rewarded ad at launch too. Loading it only
+                        // when the unlock screen appears means a quick tap
+                        // finds nothing ready.
+                        AdManager.shared.preloadRewarded()
+                    }
                 }
             } else {
                 Task { @MainActor in AdManager.shared.preload() }

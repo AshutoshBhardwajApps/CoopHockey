@@ -37,7 +37,16 @@ final class AdManager: NSObject, ObservableObject {
     private var rewardedLoading = false
     private var presentingRewarded = false
     private var rewardEarned = false
-    private var rewardCompletion: ((Bool) -> Void)?
+    private var rewardCompletion: ((RewardOutcome) -> Void)?
+
+    /// Why a rewarded attempt ended. "No ad to show" and "you closed it early"
+    /// are completely different situations and must not share a message —
+    /// telling someone to finish an ad they were never shown is nonsense.
+    enum RewardOutcome {
+        case earned
+        case dismissedEarly
+        case unavailable
+    }
 
     private override init() { super.init() }
 
@@ -78,7 +87,10 @@ final class AdManager: NSObject, ObservableObject {
                 self.rewarded = ad
                 print("[AdManager] ✅ rewarded loaded")
             } else {
-                print("[AdManager] ❌ rewarded load failed: \(error?.localizedDescription ?? "unknown")")
+                print("[AdManager] ❌ rewarded load failed: \(error?.localizedDescription ?? "unknown") — retry in 10s")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                    self?.preloadRewarded()
+                }
             }
         }
     }
@@ -87,10 +99,10 @@ final class AdManager: NSObject, ObservableObject {
 
     /// Shows the rewarded ad. `completion(true)` only if the reward was
     /// actually earned — dismissing early must not grant a free game.
-    func presentRewarded(completion: @escaping (Bool) -> Void) {
+    func presentRewarded(completion: @escaping (RewardOutcome) -> Void) {
         guard let ad = rewarded, let rootVC = Self.presenterVC() else {
             preloadRewarded()
-            completion(false)
+            completion(.unavailable)
             return
         }
         rewarded = nil
@@ -211,7 +223,7 @@ extension AdManager: FullScreenContentDelegate {
         let earned = rewardEarned
         let done = rewardCompletion
         rewardCompletion = nil
-        done?(earned)
+        done?(earned ? .earned : .dismissedEarly)
         return true
     }
 }

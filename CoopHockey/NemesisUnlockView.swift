@@ -84,13 +84,16 @@ struct NemesisUnlockView: View {
                     // than an interstitial anyway.
                     Button {
                         watchingAd = true
-                        AdManager.shared.presentRewarded { earned in
+                        AdManager.shared.presentRewarded { outcome in
                             watchingAd = false
-                            if earned {
+                            switch outcome {
+                            case .earned:
                                 settings.grantNemesisGame()
                                 onDismiss()
-                            } else {
+                            case .dismissedEarly:
                                 adMessage = "No game earned — the ad needs to finish."
+                            case .unavailable:
+                                adMessage = "No ad ready just yet. Try again in a moment."
                             }
                         }
                     } label: {
