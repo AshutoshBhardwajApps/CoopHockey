@@ -110,7 +110,12 @@ final class AdManager: NSObject, ObservableObject {
     /// Shows the rewarded ad. `completion(true)` only if the reward was
     /// actually earned — dismissing early must not grant a free game.
     func presentRewarded(completion: @escaping (RewardOutcome) -> Void) {
-        guard let ad = rewarded, let rootVC = Self.presenterVC() else {
+        // Must be the TOPMOST controller, not AdPresenter's fixed anchor. The
+        // unlock screen is a fullScreenCover presented over ContentView, so the
+        // anchor sits behind it — and UIKit refuses to present from a
+        // controller that is already presenting. That silently produced fill
+        // with zero impressions on every single rewarded request.
+        guard let ad = rewarded, let rootVC = Self.topmostPresenterVC() else {
             preloadRewarded()
             completion(.unavailable)
             return
@@ -194,6 +199,21 @@ final class AdManager: NSObject, ObservableObject {
 
     // MARK: - Presenter helpers
 
+    /// The controller actually on top of the presentation stack.
+    ///
+    /// `presenterVC()` deliberately prefers AdPresenter's stable anchor, which
+    /// is right for interstitials — they fire at a game break with nothing
+    /// covering the game view, and the anchor lets `presentIfAllowed` detect
+    /// when a sheet is already up and wait. Anything shown from *inside* a
+    /// sheet or cover needs this instead.
+    private static func topmostPresenterVC() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive }
+        let root = scenes.first?.windows.first(where: { $0.isKeyWindow })?.rootViewController
+        return topViewController(base: root) ?? AdPresenter.holder
+    }
+
     private static func presenterVC() -> UIViewController? {
         if let vc = AdPresenter.holder, vc.viewIfLoaded?.window != nil { return vc }
         let scenes = UIApplication.shared.connectedScenes
@@ -218,7 +238,21 @@ extension AdManager: FullScreenContentDelegate {
         NotificationCenter.default.post(name: .adWillPresent, object: nil)
     }
     func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
-        if finishRewardedIfNeeded() { return }
+        // Loud on purpose. A present failure looks identical to a no-fill in
+        // the AdMob report except for match rate, and going unlogged is how
+        // 100%-filled rewarded ads served zero impressions unnoticed.
+        print("[AdManager] ❌ present failed: \(error.localizedDescription)")
+
+        if presentingRewarded {
+            // The player never saw an ad, so telling them to "finish the ad"
+            // would be nonsense. Report it as unavailable and reload.
+            presentingRewarded = false
+            let done = rewardCompletion
+            rewardCompletion = nil
+            preloadRewarded()
+            done?(.unavailable)
+            return
+        }
         NotificationCenter.default.post(name: .adDidDismiss, object: nil)
     }
     func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
