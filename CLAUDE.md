@@ -86,6 +86,22 @@ This matters more than it looks — getting it wrong fails **silently**.
 - Successful purchase → `SettingsStore.markRemoveAdsPurchased()` →
   `hasRemovedAds = true` propagates everywhere via `@Published`.
 
+## Consent (`ConsentManager`)
+
+- Wraps Google's **User Messaging Platform** (UMP), the certified CMP needed
+  for GDPR/TCF consent in the EEA, UK and Switzerland.
+- **Order at launch is: UMP consent → ATT → preload ads.** All three happen
+  inside `requestATTIfNeeded()`, i.e. still on `didBecomeActive` + 0.4s. Don't
+  move ATT earlier to make room for anything — that timing is what fixed the
+  1.3(14) rejection.
+- Outside the EEA, UMP reports "no form required" and falls through in one
+  round trip. Most players never see anything.
+- Consent failures must never block ad loading. `gather(from:completion:)`
+  always calls its completion; the SDK falls back to non-personalised ads.
+- To test the form: set `ConsentManager.forceEEAForTesting = true` (DEBUG
+  only) and use "Reset consent" in the Settings DEBUG section — UMP caches the
+  answer and won't re-present until consent is cleared.
+
 ## NEMESIS
 
 The adaptive hard-mode opponent, added Aug 2026. Three ways in, modelled by

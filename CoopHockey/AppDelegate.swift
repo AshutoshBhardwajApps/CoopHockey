@@ -77,20 +77,45 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // can race with the first frame and either be dropped or appear
         // before the app's UI is visible (which Apple also dislikes).
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            if #available(iOS 14, *) {
-                ATTrackingManager.requestTrackingAuthorization { status in
-                    FBAdSettings.setAdvertiserTrackingEnabled(status == .authorized)
-                    Task { @MainActor in
-                        AdManager.shared.preload()
-                        // Warm the rewarded ad at launch too. Loading it only
-                        // when the unlock screen appears means a quick tap
-                        // finds nothing ready.
-                        AdManager.shared.preloadRewarded()
-                    }
-                }
-            } else {
-                Task { @MainActor in AdManager.shared.preload() }
+            // UMP consent runs BEFORE ATT. In the EEA/UK/Switzerland a
+            // Google-certified CMP has to gather GDPR consent or those users
+            // can only ever be served non-personalised ads. Everywhere else
+            // UMP reports "no form required" and this falls straight through.
+            //
+            // Ads are only preloaded once both prompts have been answered, so
+            // the first request carries the right consent and ATT signals.
+            ConsentManager.shared.gather(from: Self.keyWindowRoot()) { [weak self] in
+                self?.requestATTThenPreloadAds()
             }
         }
+    }
+
+    private func requestATTThenPreloadAds() {
+        if #available(iOS 14, *) {
+            ATTrackingManager.requestTrackingAuthorization { status in
+                FBAdSettings.setAdvertiserTrackingEnabled(status == .authorized)
+                Task { @MainActor in
+                    AdManager.shared.preload()
+                    // Warm the rewarded ad at launch too. Loading it only
+                    // when the unlock screen appears means a quick tap
+                    // finds nothing ready.
+                    AdManager.shared.preloadRewarded()
+                }
+            }
+        } else {
+            Task { @MainActor in AdManager.shared.preload() }
+        }
+    }
+
+    /// Root controller of the active scene's key window — where the UMP
+    /// consent form presents from. Nothing is covering the UI this early in
+    /// launch, so the plain root is the right anchor here.
+    private static func keyWindowRoot() -> UIViewController? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive }
+            .first?
+            .windows.first(where: { $0.isKeyWindow })?
+            .rootViewController
     }
 }

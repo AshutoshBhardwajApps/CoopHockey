@@ -76,6 +76,10 @@ struct SettingsView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
+                Button("Reset consent (UMP form shows next launch)") {
+                    ConsentManager.shared.reset()
+                }
+
                 Button("Ad Inspector") {
                     let scenes = UIApplication.shared.connectedScenes
                         .compactMap { $0 as? UIWindowScene }
