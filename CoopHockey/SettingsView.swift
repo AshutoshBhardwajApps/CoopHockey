@@ -6,6 +6,7 @@ import GoogleMobileAds
 struct SettingsView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var purchaseManager: PurchaseManager
+    @EnvironmentObject var gameCenter: GameCenterManager
 
     var body: some View {
         Form {
@@ -70,7 +71,7 @@ struct SettingsView: View {
                     settings.expireNemesisTrial()
                 }
                 Text("Credits: \(settings.nemesisGameCredits) · "
-                     + "Trial left: \(Int(settings.nemesisTrialRemaining / 60)) min · "
+                     + "Free game: \(settings.hasUsedFreeNemesisGame ? "spent" : "available") · "
                      + "studied \(PlayerModel.shared.gamesStudied) games · "
                      + "history offset \(String(format: "%+.2f", PlayerModel.shared.historyOffset))")
                     .font(.caption2)
@@ -93,6 +94,24 @@ struct SettingsView: View {
                 }
             }
             #endif
+
+            Section("GAME CENTER") {
+                Button {
+                    gameCenter.showLeaderboards()
+                } label: {
+                    HStack {
+                        Image(systemName: "trophy")
+                        Text("Leaderboards")
+                        Spacer()
+                        if !gameCenter.isAuthenticated {
+                            Text("Not signed in")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .disabled(!gameCenter.isAuthenticated)
+            }
 
             Section("ABOUT") {
                 NavigationLink {

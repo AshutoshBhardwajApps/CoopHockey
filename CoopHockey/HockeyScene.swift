@@ -12,8 +12,8 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
     var onGoalScored: ((Int) -> Void)?
     /// Fires once per second of live NEMESIS play so the free trial only
     /// burns while the puck is actually moving.
-    var onNemesisTrialTick: ((TimeInterval) -> Void)?
-    private var nemesisTrialAccum: CGFloat = 0
+    var onNemesisSecondTick: ((TimeInterval) -> Void)?
+    private var nemesisTickAccum: CGFloat = 0
 
     private var puckNode: SKShapeNode!
     private var mallet1: SKShapeNode!
@@ -636,15 +636,15 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
             nemPuckWasInOwnHalf = inOwnHalf
         }
 
-        // This point is only reached while play is live (the guard above rules
-        // out pauses, goal cooldowns and the pre-puck countdown), so it is the
-        // right place to meter the trial.
+        // Only reached while play is live (the guard above rules out pauses,
+        // goal cooldowns and the pre-puck countdown). Nothing is metered any
+        // more; this drives the once-a-second NEMESIS pressure update.
         if gameMode == .vsComputer(.nemesis) {
-            nemesisTrialAccum += dt
-            if nemesisTrialAccum >= 1 {
-                let whole = floor(nemesisTrialAccum)
-                nemesisTrialAccum -= whole
-                onNemesisTrialTick?(TimeInterval(whole))
+            nemesisTickAccum += dt
+            if nemesisTickAccum >= 1 {
+                let whole = floor(nemesisTickAccum)
+                nemesisTickAccum -= whole
+                onNemesisSecondTick?(TimeInterval(whole))
             }
         }
 

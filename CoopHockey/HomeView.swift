@@ -10,7 +10,6 @@ struct HomeView: View {
     @State private var showNemesisSheet = false
     /// Mirrored into @State because SettingsStore doesn't publish the trial
     /// clock — refreshed whenever this screen comes back into view.
-    @State private var trialRemaining: Int = 0
 
     var body: some View {
         NavigationStack {
@@ -189,12 +188,9 @@ struct HomeView: View {
             .onAppear {
                 if settings.musicEnabled { BGM.shared.play(volume: 0.20) } else { BGM.shared.stop() }
                 showDifficulty = false
-                trialRemaining = Int(settings.nemesisTrialRemaining)
             }
         }
-        .fullScreenCover(item: $activeGameMode, onDismiss: {
-            trialRemaining = Int(settings.nemesisTrialRemaining)
-        }) { mode in
+        .fullScreenCover(item: $activeGameMode) { mode in
             ContentView(gameMode: mode)
                 .environmentObject(settings)
                 .environmentObject(scores)
@@ -212,18 +208,14 @@ struct HomeView: View {
         }
     }
 
-    /// Trial state under the NEMESIS button: how much free play is left, or
-    /// nothing at all once it's bought.
+    /// Access state under the NEMESIS button, or nothing at all once bought.
+    /// Credits outrank the free game deliberately: if someone has watched an
+    /// ad they should see that it landed.
     private var nemesisBadge: String? {
         if settings.hasNemesis { return nil }
-        let left = trialRemaining
-        if left > 0 {
-            if left >= Int(SettingsStore.nemesisTrialLimit) { return "FREE · 15 MIN" }
-            if left < 60 { return "UNDER 1 MIN LEFT" }
-            return "\(Int(ceil(Double(left) / 60))) MIN LEFT"
-        }
         let credits = settings.nemesisGameCredits
         if credits > 0 { return credits == 1 ? "1 GAME READY" : "\(credits) GAMES READY" }
+        if !settings.hasUsedFreeNemesisGame { return "FREE GAME" }
         return "WATCH AD OR UNLOCK"
     }
 

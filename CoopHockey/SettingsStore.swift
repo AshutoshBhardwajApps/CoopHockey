@@ -11,9 +11,10 @@ final class SettingsStore: ObservableObject {
     static let nemesisProductID   = "coophockey.nemesis"
     static let targetScoreOptions  = [5, 7, 9]
 
-    /// Free NEMESIS play before the unlock is required. Only live play counts
-    /// — menus, pauses and result screens don't burn the trial.
-    static let nemesisTrialLimit: TimeInterval = 15 * 60
+    /// Legacy key from the 15-minute timed trial, read once at launch to
+    /// decide whether an upgrading player has already had their free taste.
+    private static let legacyTrialKey   = "h.nemesisTrial"
+    private static let legacyTrialLimit: TimeInterval = 15 * 60
 
     @Published var player1Name: String   { didSet { save() } }
     @Published var player2Name: String   { didSet { save() } }
@@ -31,23 +32,18 @@ final class SettingsStore: ObservableObject {
     // two counters is just the number of games played. Displaying it beside
     // "Games" made the two figures identical and looked like a bug.
 
-    /// Trial seconds already spent. Deliberately *not* @Published: it ticks
-    /// once a second during play, and republishing would re-render the live
-    /// game view for nothing. Screens that display it read it on appear.
-    private(set) var nemesisTrialUsed: TimeInterval
-    private var trialUnsaved: TimeInterval = 0
-
-    var nemesisTrialRemaining: TimeInterval {
-        max(0, Self.nemesisTrialLimit - nemesisTrialUsed)
-    }
-    var nemesisTrialExpired: Bool { nemesisTrialRemaining <= 0 }
+    /// One free NEMESIS game, once per install, so a player knows what the
+    /// unlock actually buys before paying for it. Replaced the 15-minute
+    /// timed trial: the timer had to tick every frame during play, and at
+    /// roughly one game per session nobody ever reached the end of it anyway.
+    @Published private(set) var hasUsedFreeNemesisGame: Bool
 
     /// How the player is getting into a NEMESIS game right now.
-    enum NemesisAccess { case owned, trial, credit, locked }
+    enum NemesisAccess { case owned, freeGame, credit, locked }
 
     var nemesisAccess: NemesisAccess {
         if hasNemesis { return .owned }
-        if !nemesisTrialExpired { return .trial }
+        if !hasUsedFreeNemesisGame { return .freeGame }
         if nemesisGameCredits > 0 { return .credit }
         return .locked
     }
@@ -68,39 +64,27 @@ final class SettingsStore: ObservableObject {
         save()
     }
 
-    func addNemesisTrialTime(_ seconds: TimeInterval) {
-        guard !hasNemesis else { return }
-        nemesisTrialUsed += seconds
-        trialUnsaved += seconds
-        // Persist every ~5s instead of every tick; also flushed when play
-        // stops. Erring toward under-counting is the player-friendly bug.
-        if trialUnsaved >= 5 { flushNemesisTrial() }
+    /// Burns the one-off free game. Called when a NEMESIS game actually
+    /// starts, not when the player merely looks at the screen.
+    func consumeFreeNemesisGame() {
+        guard !hasUsedFreeNemesisGame else { return }
+        hasUsedFreeNemesisGame = true
+        save()
     }
 
     #if DEBUG
-    /// Playtesting helper — hand the 15 minutes back.
-    /// Jump straight to the paywall without playing out the 15 minutes.
+    /// Jump straight to the paywall without spending the free game.
     func expireNemesisTrial() {
-        nemesisTrialUsed = Self.nemesisTrialLimit
-        trialUnsaved = 0
-        UserDefaults.standard.set(nemesisTrialUsed, forKey: "h.nemesisTrial")
+        hasUsedFreeNemesisGame = true
         save()
     }
 
     func resetNemesisTrial() {
-        nemesisTrialUsed = 0
-        trialUnsaved = 0
+        hasUsedFreeNemesisGame = false
         nemesisGameCredits = 0
-        UserDefaults.standard.set(0.0, forKey: "h.nemesisTrial")
         save()
     }
     #endif
-
-    func flushNemesisTrial() {
-        guard trialUnsaved > 0 else { return }
-        trialUnsaved = 0
-        UserDefaults.standard.set(nemesisTrialUsed, forKey: "h.nemesisTrial")
-    }
 
     private init() {
         let d = UserDefaults.standard
@@ -111,8 +95,18 @@ final class SettingsStore: ObservableObject {
         effectsEnabled   = d.object(forKey: "h.effects")  as? Bool   ?? true
         hasRemovedAds    = d.bool(forKey: "h.removeAds")
         hasNemesis       = d.bool(forKey: "h.nemesis")
-        nemesisTrialUsed = d.double(forKey: "h.nemesisTrial")
         nemesisGameCredits = d.integer(forKey: "h.nemesisCredits")
+
+        // Migration off the timed trial. A player who burned all 15 minutes
+        // has already had their taste, so they don't also get a free game;
+        // anyone mid-trial keeps one. Once the flag has been written the
+        // legacy key is never consulted again.
+        if d.object(forKey: "h.nemesisFreeUsed") != nil {
+            hasUsedFreeNemesisGame = d.bool(forKey: "h.nemesisFreeUsed")
+        } else {
+            hasUsedFreeNemesisGame =
+                d.double(forKey: Self.legacyTrialKey) >= Self.legacyTrialLimit
+        }
         totalGamesPlayed = d.integer(forKey: "h.gamesPlayed")
         p1WinsTotal      = d.integer(forKey: "h.p1Wins")
         p2WinsTotal      = d.integer(forKey: "h.p2Wins")
@@ -137,7 +131,7 @@ final class SettingsStore: ObservableObject {
         d.set(effectsEnabled,   forKey: "h.effects")
         d.set(hasRemovedAds,    forKey: "h.removeAds")
         d.set(hasNemesis,       forKey: "h.nemesis")
-        d.set(nemesisTrialUsed, forKey: "h.nemesisTrial")
+        d.set(hasUsedFreeNemesisGame, forKey: "h.nemesisFreeUsed")
         d.set(nemesisGameCredits, forKey: "h.nemesisCredits")
         d.set(totalGamesPlayed, forKey: "h.gamesPlayed")
         d.set(p1WinsTotal,      forKey: "h.p1Wins")

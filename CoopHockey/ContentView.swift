@@ -105,7 +105,7 @@ struct ContentView: View {
             .environmentObject(settings)
         }
         .fullScreenCover(isPresented: $coordinator.showNemesisUnlock) {
-            NemesisUnlockView(trialEnded: true, onDismiss: {
+            NemesisUnlockView(accessSpent: true, onDismiss: {
                 coordinator.showNemesisUnlock = false
                 // Bought outright *or* earned a game from an ad — either way
                 // they have access now and should get the game they came for.

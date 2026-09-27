@@ -105,23 +105,58 @@ This matters more than it looks — getting it wrong fails **silently**.
 ## NEMESIS
 
 The adaptive hard-mode opponent, added Aug 2026. Three ways in, modelled by
-`SettingsStore.NemesisAccess` (`.owned`, `.trial`, `.credit`, `.locked`):
+`SettingsStore.NemesisAccess` (`.owned`, `.freeGame`, `.credit`, `.locked`):
 
-- **Trial** — 15 minutes of *gameplay* time (`nemesisTrialLimit`). Menus,
-  pauses and result screens deliberately don't burn it.
+- **Free game** — one game, once per install, so a player sees what the
+  unlock buys. Replaced a 15-minute timed trial in Sept 2026: the timer had
+  to tick every frame, and at ~1 game per session nobody reached the end of
+  it anyway.
 - **Credit** — one rewarded ad earns one full NEMESIS game. A game, not a
   goal; that distinction was a bug fix, don't regress it.
 - **Owned** — the IAP.
 
 Notes:
-- `nemesisTrialUsed` is deliberately **not** `@Published` — it ticks every
-  frame and would thrash SwiftUI. It flushes to UserDefaults every 5s.
+- **Entry is paid once, in `startGame()`, and the game then runs to its end.**
+  There is no mid-game interruption any more. Every route in — first launch,
+  Play Again, resuming after an ad — goes through that one toll.
+- The free game is spent when a game actually *begins*, not when the unlock
+  screen is opened, so browsing costs nothing.
+- Badge priority on the home screen puts credits ahead of the free game: if
+  someone watched an ad, they should see that it landed.
+- `SettingsStore` migrates off the old `h.nemesisTrial` key once, at init — a
+  player who burned all 15 minutes doesn't also get a free game.
 - `expireNemesisTrial()` / `resetNemesisTrial()` are `#if DEBUG` only, as is
   the Settings shortcut that calls them. They do not exist in TestFlight.
-- Deleting the app **resets** the trial to a full 15 minutes, which makes
-  testing the paywall harder, not easier.
 - The unlock screen is a `fullScreenCover` — see the presenter rules above
   before showing anything from it.
+
+## Game Center (`GameCenterManager`)
+
+- **Leaderboards only** — no achievements, no matchmaking.
+- Three boards, IDs in the `Leaderboard` enum. They must match App Store
+  Connect letter-for-letter or submissions fail *silently*.
+- Game Center has no increment operation: every submission replaces the
+  stored value, so the app keeps its own running totals in UserDefaults
+  (`h.gc.*`) and submits the new total.
+- Authentication is **best-effort**. A player who declines, or has no
+  network, must lose nothing — every submission path no-ops when
+  unauthenticated rather than surfacing an error.
+- `authenticate()` runs from the App struct's `.task`, not `AppDelegate`,
+  because GameKit may present a sign-in sheet and needs a window to present
+  from. It presents from the topmost controller, same rule as rewarded ads.
+- Needs `com.apple.developer.game-center` in the entitlements file.
+
+## iPhone Duo (foldable)
+
+- Outer display reports **compact width**, inner display reports **regular**
+  in both dimensions. Layout decisions must come from size classes.
+- The app resizes when folded or unfolded. `HockeyScene.didChangeSize`
+  rebuilds the table and re-serves the puck; scores live in
+  `GameCoordinator`, so they survive the transition.
+- **Don't reintroduce `UIRequiresFullScreen`.** It's deprecated, will be
+  ignored in a future release, and was removed in Sept 2026.
+- Aspect ratios are close (inner ~1:1.42, outer ~1:1.45), so the rink barely
+  distorts between poses.
 
 ## Settings (`SettingsStore`)
 

@@ -42,12 +42,10 @@ final class GameCoordinator: ObservableObject {
     @Published var showResult = false
     @Published var showRemoveAdsPromo = false
     @Published var showNemesisUnlock = false
-    /// Set once the trial runs dry mid-game; acted on at the next goal so a
-    /// rally is never cut off halfway.
-    private var nemesisTrialOver = false
+    /// Drives the shutout valve in `updateNemesisPressure`.
     private var lastPlayerGoal = Date()
-    /// How the game currently in progress was paid for. A credited or owned
-    /// game is immune to the trial clock; only a trial game answers to it.
+    /// How the game currently in progress was paid for. Every route in pays
+    /// its toll once at `startGame`, and the game then runs to its end.
     private var nemesisEntryMode: SettingsStore.NemesisAccess = .owned
     /// nil when no countdown is active. Otherwise the current number being
     /// shown (3, 2, 1). ContentView renders an overlay when non-nil.
@@ -65,7 +63,7 @@ final class GameCoordinator: ObservableObject {
         scene.onGoalScored = { [weak self] scorer in
             Task { @MainActor [weak self] in self?.handleGoal(by: scorer) }
         }
-        scene.onNemesisTrialTick = { [weak self] seconds in
+        scene.onNemesisSecondTick = { [weak self] seconds in
             Task { @MainActor [weak self] in self?.noteNemesisPlay(seconds) }
         }
     }
@@ -98,36 +96,24 @@ final class GameCoordinator: ObservableObject {
 
     @MainActor
     private func noteNemesisPlay(_ seconds: TimeInterval) {
-        settings.addNemesisTrialTime(seconds)
-        // Only a game being played ON the trial can be cut short by the trial
-        // running out. A game paid for with an ad credit is already bought and
-        // must run to its end — checking `nemesisTrialExpired` alone meant the
-        // flag switched straight back on a second after resuming, so an earned
-        // game ended at the very next goal.
-        if nemesisEntryMode == .trial, !settings.hasNemesis, settings.nemesisTrialExpired {
-            nemesisTrialOver = true
-        }
-        // Once a second, so the dry-spell valve can open mid-game rather than
-        // only at the next goal — which may be exactly what isn't happening.
+        // Nothing is metered any more — entry is paid once, up front, and
+        // every NEMESIS game runs to its end. This still fires once a second
+        // so the dry-spell valve can open mid-game rather than only at the
+        // next goal, which may be exactly what isn't happening.
         updateNemesisPressure()
     }
 
-    /// Called after the player buys NEMESIS from the trial-ended screen —
-    /// picks play back up from the goal that interrupted it.
     /// Called once the player has regained access — bought NEMESIS, or earned
     /// a game with a rewarded ad — from the screen that blocked them.
     ///
-    /// Two different situations arrive here: the trial ran out *during* a game
-    /// (resume it), or they were refused a new one (start it). Getting this
-    /// wrong means someone watches an ad and is dropped back to the menu.
+    /// Games are no longer interrupted mid-play, so this almost always starts
+    /// a fresh one. The `.goalScored` branch survives for the case where the
+    /// unlock screen was raised from a goal break.
     @MainActor
     func resumeOrRestartNemesis() {
-        nemesisTrialOver = false
         scene.resumeGame()
 
         if case .goalScored(let scorer) = state {
-            // The rest of this game is now paid for by whatever they just did,
-            // so it stops answering to the trial clock.
             nemesisEntryMode = settings.nemesisAccess
             if settings.nemesisAccess == .credit { settings.spendNemesisGame() }
             scene.resumeAfterGoal(towardPlayer: scorer)
@@ -148,11 +134,14 @@ final class GameCoordinator: ObservableObject {
                 return
             case .credit:
                 settings.spendNemesisGame()
-            case .owned, .trial:
+            case .freeGame:
+                // Spent when a game actually begins, not when the player
+                // merely opens the screen — so browsing costs nothing.
+                settings.consumeFreeNemesisGame()
+            case .owned:
                 break
             }
             nemesisEntryMode = access
-            nemesisTrialOver = false
         }
 
         p1Score = 0
@@ -193,14 +182,6 @@ final class GameCoordinator: ObservableObject {
         updateNemesisPressure()
         PlayerModel.shared.flush()
 
-        // Trial ran out earlier in this game — stop here rather than mid-rally.
-        if nemesisTrialOver, !settings.hasNemesis {
-            settings.flushNemesisTrial()
-            scene.pauseGame()
-            showNemesisUnlock = true
-            return
-        }
-
         let target = settings.targetScore
         if p1Score >= target || p2Score >= target {
             let winner = p1Score >= target ? 1 : 2
@@ -209,6 +190,12 @@ final class GameCoordinator: ObservableObject {
             if gameMode == .vsComputer(.nemesis) {
                 PlayerModel.shared.recordGameFinished(playerWon: winner == 1)
             }
+            GameCenterManager.shared.recordGameFinished(
+                playerWon: winner == 1,
+                wasNemesis: gameMode == .vsComputer(.nemesis),
+                winningScore: max(p1Score, p2Score),
+                losingScore: min(p1Score, p2Score)
+            )
             HighScoresStore.shared.add(
                 p1Name: settings.player1Name,
                 p2Name: settings.player2Name,
