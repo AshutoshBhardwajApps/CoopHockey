@@ -153,8 +153,16 @@ Notes:
 - The app resizes when folded or unfolded. `HockeyScene.didChangeSize`
   rebuilds the table and re-serves the puck; scores live in
   `GameCoordinator`, so they survive the transition.
-- **Don't reintroduce `UIRequiresFullScreen`.** It's deprecated, will be
-  ignored in a future release, and was removed in Sept 2026.
+- **`UIRequiresFullScreen` stays, despite being deprecated.** Removing it
+  opts the app into iPad multitasking, and Apple then requires all four
+  orientations to be declared — App Store validation rejects the bundle
+  outright. CoopHockey is portrait-only by design (two players at opposite
+  ends of a phone lying flat), so landscape isn't an option. This was tried
+  and reverted during 1.6.2.
+- Keeping the key costs nothing here: Apple's guidance is that iPhone Duo
+  honours it **and** still resizes the app when folded or unfolded. When the
+  key is eventually ignored, the real decision is supporting landscape or
+  dropping iPad — not just deleting the line.
 - Aspect ratios are close (inner ~1:1.42, outer ~1:1.45), so the rink barely
   distorts between poses.
 
