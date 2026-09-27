@@ -128,7 +128,7 @@ struct SettingsView: View {
         .task { await purchaseManager.loadProducts() }
         .onChange(of: settings.musicEnabled) { enabled in
             Task { @MainActor in
-                if enabled { BGM.shared.play(volume: 0.20) } else { BGM.shared.stop() }
+                if enabled { BGM.shared.play() } else { BGM.shared.stop() }
             }
         }
     }

@@ -8,8 +8,6 @@ struct HomeView: View {
     @State private var showDifficulty = false
     @State private var showRemoveAdsSheet = false
     @State private var showNemesisSheet = false
-    /// Mirrored into @State because SettingsStore doesn't publish the trial
-    /// clock — refreshed whenever this screen comes back into view.
 
     var body: some View {
         NavigationStack {
@@ -94,8 +92,9 @@ struct HomeView: View {
                                 }
                             }
 
-                            // NEMESIS: free until the trial is spent, then the
-                            // button becomes the store page.
+                            // NEMESIS: playable while a free game or an ad
+                            // credit is in hand, otherwise the button becomes
+                            // the store page.
                             Button {
                                 if settings.canPlayNemesis {
                                     activeGameMode = .vsComputer(.nemesis)
@@ -186,7 +185,7 @@ struct HomeView: View {
             }
             .navigationBarHidden(true)
             .onAppear {
-                if settings.musicEnabled { BGM.shared.play(volume: 0.20) } else { BGM.shared.stop() }
+                if settings.musicEnabled { BGM.shared.play() } else { BGM.shared.stop() }
                 showDifficulty = false
             }
         }
