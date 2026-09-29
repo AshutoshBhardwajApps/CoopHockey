@@ -43,6 +43,29 @@ final class AdManager: NSObject, ObservableObject {
     private var rewarded: RewardedAd?
     private var rewardedLoading = false
     private var presentingRewarded = false
+
+    /// When the currently held rewarded ad finished loading. Google expires
+    /// rewarded ads after roughly an hour; we discard at 50 minutes so a
+    /// player who launched the app and reached the paywall much later isn't
+    /// handed a corpse. Presenting a stale ad costs an impression and shows
+    /// "no ad ready" for no reason the player can act on.
+    private var rewardedLoadedAt: Date?
+    private static let rewardedMaxAge: TimeInterval = 50 * 60
+
+    /// Diagnostic counters, persisted so they survive relaunches.
+    ///
+    /// AdMob cannot distinguish "nobody tapped the button" from "everyone
+    /// tapped and the present failed" — both read as requests with zero
+    /// impressions. These two numbers separate them, which is the question
+    /// that took a month to answer last time.
+    private(set) var rewardedPresentAttempts: Int {
+        get { UserDefaults.standard.integer(forKey: "h.ad.rewAttempts") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.rewAttempts") }
+    }
+    private(set) var rewardedImpressions: Int {
+        get { UserDefaults.standard.integer(forKey: "h.ad.rewImpressions") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.rewImpressions") }
+    }
     private var rewardEarned = false
     private var rewardCompletion: ((RewardOutcome) -> Void)?
 
@@ -84,6 +107,7 @@ final class AdManager: NSObject, ObservableObject {
     /// make, and cutting it off would leave paying customers unable to earn
     /// NEMESIS games at all.
     func preloadRewarded() {
+        discardRewardedIfStale()
         guard rewarded == nil, !rewardedLoading else { return }
         rewardedLoading = true
         RewardedAd.load(with: rewardedID, request: Request()) { [weak self] ad, error in
@@ -92,6 +116,7 @@ final class AdManager: NSObject, ObservableObject {
             if let ad {
                 ad.fullScreenContentDelegate = self
                 self.rewarded = ad
+                self.rewardedLoadedAt = Date()
                 self.isRewardedReady = true
                 print("[AdManager] ✅ rewarded loaded")
             } else {
@@ -115,12 +140,18 @@ final class AdManager: NSObject, ObservableObject {
         // anchor sits behind it — and UIKit refuses to present from a
         // controller that is already presenting. That silently produced fill
         // with zero impressions on every single rewarded request.
+        rewardedPresentAttempts += 1
+        discardRewardedIfStale()
+
         guard let ad = rewarded, let rootVC = Self.topmostPresenterVC() else {
+            print("[AdManager] rewarded present skipped — "
+                  + "ad=\(rewarded != nil) presenter=\(Self.topmostPresenterVC() != nil)")
             preloadRewarded()
             completion(.unavailable)
             return
         }
         rewarded = nil
+        rewardedLoadedAt = nil
         isRewardedReady = false
         rewardEarned = false
         presentingRewarded = true
@@ -197,6 +228,19 @@ final class AdManager: NSObject, ObservableObject {
         completion?(true)
     }
 
+    /// Drops a rewarded ad that has aged past `rewardedMaxAge`, so the next
+    /// `preloadRewarded()` fetches a fresh one instead of the guard above
+    /// short-circuiting on a stale object.
+    private func discardRewardedIfStale() {
+        guard rewarded != nil, let at = rewardedLoadedAt,
+              Date().timeIntervalSince(at) > Self.rewardedMaxAge else { return }
+        print("[AdManager] rewarded aged out after "
+              + "\(Int(Date().timeIntervalSince(at) / 60))min — discarding")
+        rewarded = nil
+        rewardedLoadedAt = nil
+        isRewardedReady = false
+    }
+
     // MARK: - Presenter helpers
 
     /// The controller actually on top of the presentation stack.
@@ -236,6 +280,15 @@ final class AdManager: NSObject, ObservableObject {
 extension AdManager: FullScreenContentDelegate {
     func adWillPresentFullScreenContent(_ ad: any FullScreenPresentingAd) {
         NotificationCenter.default.post(name: .adWillPresent, object: nil)
+    }
+
+    /// The only callback that confirms AdMob actually counted the render.
+    /// Without it there is no way to tell a presented-and-counted ad from one
+    /// that appeared and silently didn't register.
+    func adDidRecordImpression(_ ad: any FullScreenPresentingAd) {
+        if presentingRewarded { rewardedImpressions += 1 }
+        print("[AdManager] ✅ impression recorded "
+              + "(rewarded=\(presentingRewarded))")
     }
     func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         // Loud on purpose. A present failure looks identical to a no-fill in

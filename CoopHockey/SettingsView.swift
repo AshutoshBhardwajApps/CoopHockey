@@ -77,6 +77,13 @@ struct SettingsView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
+                // Separates "nobody tapped" from "taps failed to present" —
+                // the ambiguity AdMob's dashboard cannot resolve.
+                Text("Rewarded: \(AdManager.shared.rewardedPresentAttempts) attempts · "
+                     + "\(AdManager.shared.rewardedImpressions) impressions")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
                 Button("Reset consent (UMP form shows next launch)") {
                     ConsentManager.shared.reset()
                 }
