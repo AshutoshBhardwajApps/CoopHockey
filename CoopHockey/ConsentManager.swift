@@ -34,15 +34,39 @@ final class ConsentManager {
     /// the EEA, and true inside it once the form has been answered.
     var canRequestAds: Bool { ConsentInformation.shared.canRequestAds }
 
+    /// How long to wait for UMP before letting the rest of launch proceed.
+    /// Ad preloading sits downstream of this, and a consent call that hangs
+    /// would otherwise mean the app never loads an ad at all — a silent
+    /// failure, since `presentIfAllowed` does nothing when none is ready.
+    private static let timeout: TimeInterval = 5
+
     /// Refreshes consent state and presents the form only if UMP says one is
     /// required.
     ///
-    /// `completion` runs exactly once, on the main thread, whether or not
-    /// anything failed. A consent error must never leave the app without ads
-    /// — Google's guidance is to fall back to non-personalised serving, which
-    /// is what the SDK does on its own when consent is absent.
+    /// `completion` runs exactly once, on the main thread, whether consent
+    /// succeeded, failed, or simply took too long. A consent problem must
+    /// never leave the app without ads — Google's guidance is to fall back to
+    /// non-personalised serving, which the SDK does on its own when consent
+    /// is absent.
+    ///
+    /// If the timeout wins, UMP keeps running: a form that arrives late still
+    /// presents, and consent still applies to every request after it lands.
+    /// Only the *waiting* is abandoned, not the consent itself.
     func gather(from viewController: UIViewController?,
                 completion: @escaping () -> Void) {
+
+        var finished = false
+        let finishOnce: () -> Void = {
+            assert(Thread.isMainThread)
+            guard !finished else { return }
+            finished = true
+            completion()
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.timeout) {
+            if !finished { print("[Consent] timed out after \(Int(Self.timeout))s — proceeding") }
+            finishOnce()
+        }
 
         let parameters = RequestParameters()
         parameters.isTaggedForUnderAgeOfConsent = false
@@ -59,13 +83,13 @@ final class ConsentManager {
         ConsentInformation.shared.requestConsentInfoUpdate(with: parameters) { [weak self] error in
             if let error {
                 print("[Consent] info update failed: \(error.localizedDescription)")
-                Self.finish(completion)
+                Self.onMain(finishOnce)
                 return
             }
 
             guard let viewController else {
                 print("[Consent] no presenter available; skipping form")
-                Self.finish(completion)
+                Self.onMain(finishOnce)
                 return
             }
 
@@ -74,16 +98,19 @@ final class ConsentManager {
                     print("[Consent] form failed: \(formError.localizedDescription)")
                 }
                 print("[Consent] canRequestAds=\(self?.canRequestAds ?? false)")
-                Self.finish(completion)
+                Self.onMain(finishOnce)
             }
         }
     }
 
-    private static func finish(_ completion: @escaping () -> Void) {
+    /// UMP documents its callbacks as main-thread, but `finishOnce` mutates
+    /// shared state and must not race the timeout, so this hops explicitly
+    /// rather than trusting that.
+    private static func onMain(_ block: @escaping () -> Void) {
         if Thread.isMainThread {
-            completion()
+            block()
         } else {
-            DispatchQueue.main.async(execute: completion)
+            DispatchQueue.main.async(execute: block)
         }
     }
 
