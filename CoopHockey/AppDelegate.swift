@@ -29,8 +29,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         //   "To get test ads on this device, set: Mobile Ads SDK ... testDeviceIdentifiers = @[ @"ABC123..." ]"
         // Paste that hash into the array below. Safe to ship with real device IDs in production —
         // it only affects the listed devices.
+        // This hash is derived from the device's advertising identifier, so it
+        // changes if that identifier is reset — at which point the device
+        // silently starts serving REAL ads to you. Re-read it from the console
+        // ("To get test ads on this device, set: ...") whenever that happens.
         MobileAds.shared.requestConfiguration.testDeviceIdentifiers = [
-            "979fc0c499c82c5211db23733cdf821d", // Ashutosh's iPhone
+            "c18f2644337b99f078c7f88f6136a82f", // Ashutosh's iPhone (re-read 2026-10-05)
         ]
 
         // Meta Audience Network (mediation bidding) needs its Advertiser

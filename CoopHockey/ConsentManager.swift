@@ -75,7 +75,11 @@ final class ConsentManager {
         if Self.forceEEAForTesting {
             let debug = DebugSettings()
             debug.geography = .EEA
-            debug.testDeviceIdentifiers = ["979fc0c499c82c5211db23733cdf821d"]
+            // UMP uses its OWN device identifier — a UUID — not the hashed one
+            // AdMob prints for test ads. Mixing them up means the geography
+            // override is silently ignored. Read it from the console line
+            // "<UMP SDK> To enable debug mode for this device, set: ...".
+            debug.testDeviceIdentifiers = ["DCA8B4B6-7817-425D-8BC0-79254C7EA9E6"]
             parameters.debugSettings = debug
         }
         #endif

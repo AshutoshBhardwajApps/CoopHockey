@@ -355,19 +355,6 @@
 			<string>y5ghdn5j9k.skadnetwork</string>
 		</dict>
 	</array>
-	<!-- CoopHockey is portrait-only: two players sit at opposite ends of a
-	     phone lying flat between them, so landscape makes no sense. Removing
-	     this key opts the app into iPad multitasking, which Apple then
-	     requires to declare all four orientations — App Store validation
-	     rejects the bundle otherwise (tried in 1.6.2, reverted).
-
-	     Keeping it costs nothing on iPhone Duo: Apple's own guidance is that
-	     Duo honours the key AND still resizes the app when folded or
-	     unfolded. The key is deprecated and will eventually be ignored; when
-	     that happens the real decision is landscape support or dropping iPad,
-	     not simply deleting this line. -->
-	<key>UIRequiresFullScreen</key>
-	<true/>
 	<key>UTImportedTypeDeclarations</key>
 	<array/>
 </dict>
