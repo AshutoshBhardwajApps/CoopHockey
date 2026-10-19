@@ -11,6 +11,7 @@
 		A1B2C3D4E5F6000A /* MetaAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60004 /* MetaAdapterTarget */; };
 		A1B2C3D4E5F6000B /* LiftoffMonetizeAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60006 /* LiftoffMonetizeAdapterTarget */; };
 		A1B2C3D4E5F6000C /* PangleAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60008 /* PangleAdapterTarget */; };
+		E15435103085BA16003E2078 /* UnityAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = E154350F3085BA16003E2078 /* UnityAdapterTarget */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +77,7 @@
 				A1B2C3D4E5F6000A /* MetaAdapterTarget in Frameworks */,
 				A1B2C3D4E5F6000B /* LiftoffMonetizeAdapterTarget in Frameworks */,
 				A1B2C3D4E5F6000C /* PangleAdapterTarget in Frameworks */,
+				E15435103085BA16003E2078 /* UnityAdapterTarget in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -140,6 +142,7 @@
 				A1B2C3D4E5F60004 /* MetaAdapterTarget */,
 				A1B2C3D4E5F60006 /* LiftoffMonetizeAdapterTarget */,
 				A1B2C3D4E5F60008 /* PangleAdapterTarget */,
+				E154350F3085BA16003E2078 /* UnityAdapterTarget */,
 			);
 			productName = CoopHockey;
 			productReference = A1B2C3D4E5F60031 /* CoopHockey.app */;
@@ -228,6 +231,7 @@
 				A1B2C3D4E5F60005 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-meta" */,
 				A1B2C3D4E5F60007 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-liftoffmonetize" */,
 				A1B2C3D4E5F60009 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-pangle" */,
+				E154350E3085BA16003E2078 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-unity" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A1B2C3D4E5F60091 /* Products */;
@@ -644,6 +648,14 @@
 				version = 8.1.10100;
 			};
 		};
+		E154350E3085BA16003E2078 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-unity" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/googleads-mobile-ios-mediation-unity.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.21.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -666,6 +678,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4E5F60009 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-pangle" */;
 			productName = PangleAdapterTarget;
+		};
+		E154350F3085BA16003E2078 /* UnityAdapterTarget */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E154350E3085BA16003E2078 /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-unity" */;
+			productName = UnityAdapterTarget;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
