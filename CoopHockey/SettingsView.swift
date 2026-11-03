@@ -1,12 +1,40 @@
 import SwiftUI
 #if DEBUG
 import GoogleMobileAds
+import AdSupport
+import AppTrackingTransparency
 #endif
 
 struct SettingsView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var purchaseManager: PurchaseManager
     @EnvironmentObject var gameCenter: GameCenterManager
+
+    #if DEBUG
+    /// The raw IDFA, or an explanation of why there isn't one. All-zeros is
+    /// what you get when tracking is denied, and it is useless to AdMob — so
+    /// say that rather than handing over a string of noughts to paste.
+    private static var advertisingIdentifier: String {
+        let status = ATTrackingManager.trackingAuthorizationStatus
+        guard status == .authorized else {
+            return "unavailable — ATT is \(attLabel(status)), allow tracking first"
+        }
+        let id = ASIdentifierManager.shared().advertisingIdentifier.uuidString
+        return id == "00000000-0000-0000-0000-000000000000"
+            ? "all zeros — tracking is restricted on this device"
+            : id
+    }
+
+    private static func attLabel(_ s: ATTrackingManager.AuthorizationStatus) -> String {
+        switch s {
+        case .authorized:    return "authorized"
+        case .denied:        return "denied"
+        case .restricted:    return "restricted"
+        case .notDetermined: return "not determined"
+        @unknown default:    return "unknown"
+        }
+    }
+    #endif
 
     var body: some View {
         Form {
@@ -86,6 +114,24 @@ struct SettingsView: View {
 
                 Button("Reset consent (UMP form shows next launch)") {
                     ConsentManager.shared.reset()
+                }
+
+                // IDFA for registering this device in the AdMob console.
+                // Console registration is account-side, so unlike the hash in
+                // AppDelegate it protects every installed build — including
+                // ones already on the App Store with a stale hash.
+                //
+                // Reads all zeros unless tracking is authorised; that is also
+                // why the hashed ID drifted in the first place.
+                Button {
+                    UIPasteboard.general.string = Self.advertisingIdentifier
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Copy IDFA (for AdMob test device)")
+                        Text(Self.advertisingIdentifier)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 Button("Ad Inspector") {
