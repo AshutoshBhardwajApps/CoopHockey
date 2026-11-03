@@ -754,29 +754,33 @@ final class HockeyScene: SKScene, SKPhysicsContactDelegate {
                 body.velocity = CGVector(dx: CGFloat.random(in: -80...80), dy: -260)
             }
 
-            // Separate a puck that has ended up INSIDE a mallet. Mallets are
-            // isDynamic = false, so the solver can't push the puck back out —
-            // it just stays swallowed, and hitting it does nothing because
-            // there's no surface left to strike. This nudges it to the edge
-            // of the mallet along the line between them, preserving where it
-            // is on the table. Not a reset: no drop point, no new velocity.
-            if spd < 120 {
-                let minGap = malletRadius + puckRadius + 1
-                for mallet in [mallet1, mallet2].compactMap({ $0 }) {
-                    var dx = puck.position.x - mallet.position.x
-                    var dy = puck.position.y - mallet.position.y
-                    var dist = hypot(dx, dy)
-                    guard dist < minGap else { continue }
-                    if dist < 0.001 {
-                        // Dead centre — no direction to push along. Send it
-                        // toward the nearer side wall rather than guessing.
-                        dx = puck.position.x >= 0 ? 1 : -1
-                        dy = 0
-                        dist = 1
-                    }
-                    puck.position = CGPoint(x: mallet.position.x + dx / dist * minGap,
-                                            y: mallet.position.y + dy / dist * minGap)
+            // Escape hatch for a puck SWALLOWED by a mallet — centre actually
+            // inside the mallet disc, which the solver can leave wedged
+            // because mallets are isDynamic = false and get teleported by
+            // touch rather than moved by physics.
+            //
+            // The threshold is deliberately deep. Ordinary contact sits at
+            // malletRadius + puckRadius; an earlier version triggered on any
+            // overlap and re-positioned every frame, which dragged the puck
+            // along with the mallet like velcro. Normal play never reaches
+            // this depth, so collisions are left entirely to the solver.
+            for mallet in [mallet1, mallet2].compactMap({ $0 }) {
+                var dx = puck.position.x - mallet.position.x
+                var dy = puck.position.y - mallet.position.y
+                var dist = hypot(dx, dy)
+                guard dist < malletRadius * 0.85 else { continue }
+                if dist < 0.001 {
+                    // Dead centre — no direction to push along. Send it
+                    // toward the nearer side wall rather than guessing.
+                    dx = puck.position.x >= 0 ? 1 : -1
+                    dy = 0
+                    dist = 1
                 }
+                // Out to just touching, and no further. Velocity untouched —
+                // whatever the puck was doing, it carries on doing.
+                let gap = malletRadius + puckRadius
+                puck.position = CGPoint(x: mallet.position.x + dx / dist * gap,
+                                        y: mallet.position.y + dy / dist * gap)
             }
         }
 
