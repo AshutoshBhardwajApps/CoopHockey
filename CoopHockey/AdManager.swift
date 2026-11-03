@@ -86,16 +86,22 @@ final class AdManager: NSObject, ObservableObject {
 
     func preload() {
         guard !adsDisabled else { interstitial = nil; return }
-        InterstitialAd.load(with: interstitialID, request: Request()) { [weak self] ad, error in
-            guard let self else { return }
-            guard !self.adsDisabled else { return }
-            if let ad {
-                ad.fullScreenContentDelegate = self
-                self.interstitial = ad
-                print("[AdManager] ✅ loaded")
-            } else {
-                print("[AdManager] ❌ load failed: \(error?.localizedDescription ?? "unknown") — retry in 10s")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in self?.preload() }
+        // The GMA SDK's completion is a @Sendable closure with no main-actor
+        // guarantee, so everything that touches this actor's state hops back
+        // explicitly. In practice the SDK calls back on main, but that's a
+        // convention rather than a contract — and relying on it is a hard
+        // error under the Swift 6 language mode.
+        InterstitialAd.load(with: interstitialID, request: Request()) { ad, error in
+            Task { @MainActor in
+                guard !self.adsDisabled else { return }
+                if let ad {
+                    ad.fullScreenContentDelegate = self
+                    self.interstitial = ad
+                    print("[AdManager] ✅ loaded")
+                } else {
+                    print("[AdManager] ❌ load failed: \(error?.localizedDescription ?? "unknown") — retry in 10s")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self.preload() }
+                }
             }
         }
     }
@@ -110,19 +116,20 @@ final class AdManager: NSObject, ObservableObject {
         discardRewardedIfStale()
         guard rewarded == nil, !rewardedLoading else { return }
         rewardedLoading = true
-        RewardedAd.load(with: rewardedID, request: Request()) { [weak self] ad, error in
-            guard let self else { return }
-            self.rewardedLoading = false
-            if let ad {
-                ad.fullScreenContentDelegate = self
-                self.rewarded = ad
-                self.rewardedLoadedAt = Date()
-                self.isRewardedReady = true
-                print("[AdManager] ✅ rewarded loaded")
-            } else {
-                print("[AdManager] ❌ rewarded load failed: \(error?.localizedDescription ?? "unknown") — retry in 10s")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-                    self?.preloadRewarded()
+        RewardedAd.load(with: rewardedID, request: Request()) { ad, error in
+            Task { @MainActor in
+                self.rewardedLoading = false
+                if let ad {
+                    ad.fullScreenContentDelegate = self
+                    self.rewarded = ad
+                    self.rewardedLoadedAt = Date()
+                    self.isRewardedReady = true
+                    print("[AdManager] ✅ rewarded loaded")
+                } else {
+                    print("[AdManager] ❌ rewarded load failed: \(error?.localizedDescription ?? "unknown") — retry in 10s")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                        self.preloadRewarded()
+                    }
                 }
             }
         }

@@ -133,7 +133,7 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .task { await purchaseManager.loadProducts() }
-        .onChange(of: settings.musicEnabled) { enabled in
+        .onChange(of: settings.musicEnabled) { _, enabled in
             Task { @MainActor in
                 if enabled { BGM.shared.play() } else { BGM.shared.stop() }
             }

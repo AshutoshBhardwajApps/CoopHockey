@@ -116,7 +116,7 @@ struct RemoveAdsPromoView: View {
             }
         }
         .task { await purchaseManager.loadProducts() }
-        .onChange(of: settings.hasRemovedAds) { hasRemoved in
+        .onChange(of: settings.hasRemovedAds) { _, hasRemoved in
             // Successful purchase auto-dismisses so the user lands back in
             // the result flow with no extra taps.
             if hasRemoved { onDismiss() }

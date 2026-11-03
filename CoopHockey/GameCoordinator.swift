@@ -34,6 +34,19 @@ enum GameState: Equatable {
     case gameOver(winner: Int)
 }
 
+/// Holds a NotificationCenter token so a one-shot observer can unregister
+/// itself. The obvious `var token` captured by its own closure is a data
+/// race; a reference box keeps the mutation inside a single object.
+@MainActor
+private final class ObserverToken {
+    var token: NSObjectProtocol?
+    func removeAndClear() {
+        if let token { NotificationCenter.default.removeObserver(token) }
+        token = nil
+    }
+}
+
+@MainActor
 final class GameCoordinator: ObservableObject {
 
     @Published var p1Score: Int = 0
@@ -214,11 +227,15 @@ final class GameCoordinator: ObservableObject {
             AdManager.shared.presentIfAllowed { [weak self] shown in
                 guard let self else { return }
                 if shown {
-                    var token: NSObjectProtocol?
-                    token = NotificationCenter.default.addObserver(
+                    // A box rather than a captured `var`: a self-removing
+                    // observer has to reference its own token, and mutating a
+                    // captured local from inside the closure is a data race
+                    // the compiler rejects outright under Swift 6.
+                    let holder = ObserverToken()
+                    holder.token = NotificationCenter.default.addObserver(
                         forName: .adDidDismiss, object: nil, queue: .main
                     ) { [weak self] _ in
-                        if let t = token { NotificationCenter.default.removeObserver(t) }
+                        MainActor.assumeIsolated { holder.removeAndClear() }
                         // Delay so the interstitial VC fully tears down before SwiftUI
                         // presents the result sheet — otherwise the sheet can fail to
                         // show, leaving a blank screen.

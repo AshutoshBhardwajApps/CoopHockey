@@ -2,7 +2,6 @@ import UIKit
 import GoogleMobileAds
 import AVFAudio
 import AppTrackingTransparency
-import FBAudienceNetwork
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
 
@@ -37,17 +36,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             "c18f2644337b99f078c7f88f6136a82f", // Ashutosh's iPhone (re-read 2026-10-05)
         ]
 
-        // Meta Audience Network (mediation bidding) needs its Advertiser
-        // Tracking Enabled flag set before the Google Mobile Ads SDK
-        // initializes its adapters. On first launch ATT is .notDetermined so
-        // this starts false; requestATTIfNeeded() updates it once the user
-        // answers the prompt (subsequent launches pick up the stored status).
-        if #available(iOS 14, *) {
-            FBAdSettings.setAdvertiserTrackingEnabled(
-                ATTrackingManager.trackingAuthorizationStatus == .authorized
-            )
-        }
-
+        // No FBAdSettings.setAdvertiserTrackingEnabled call here on purpose.
+        // Audience Network 6.15.0+ on iOS 17+ ignores that flag entirely and
+        // reads ATTrackingManager.trackingAuthorizationStatus itself — we ship
+        // 6.21.1, so setting it was a deprecated no-op on every device that
+        // matters. Dropping it also removes a misleading ordering constraint
+        // around MobileAds.start().
         MobileAds.shared.start()
 
         // ATT must be requested when the app is in the .active state. Calling
@@ -88,16 +82,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             //
             // Ads are only preloaded once both prompts have been answered, so
             // the first request carries the right consent and ATT signals.
-            ConsentManager.shared.gather(from: Self.keyWindowRoot()) { [weak self] in
-                self?.requestATTThenPreloadAds()
+            // No [weak self] here: the enclosing asyncAfter block already
+            // retains self strongly, so a weak capture would be decorative.
+            ConsentManager.shared.gather(from: Self.keyWindowRoot()) {
+                self.requestATTThenPreloadAds()
             }
         }
     }
 
     private func requestATTThenPreloadAds() {
         if #available(iOS 14, *) {
-            ATTrackingManager.requestTrackingAuthorization { status in
-                FBAdSettings.setAdvertiserTrackingEnabled(status == .authorized)
+            ATTrackingManager.requestTrackingAuthorization { _ in
                 Task { @MainActor in
                     AdManager.shared.preload()
                     // Warm the rewarded ad at launch too. Loading it only
