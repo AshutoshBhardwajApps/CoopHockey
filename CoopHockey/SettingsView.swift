@@ -89,6 +89,23 @@ struct SettingsView: View {
                 }
             }
 
+            // Visible in Release too. AdMob's dashboard conflates "the trigger
+            // never fired" with "present() was called and silently did
+            // nothing," so these counters are the only way to tell them apart
+            // on a shipped build without attaching Xcode.
+            Section("AD DIAGNOSTICS") {
+                Text(AdManager.shared.interstitialDiagnosticsSummary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Text("Rewarded: \(AdManager.shared.rewardedPresentAttempts) attempts · "
+                     + "\(AdManager.shared.rewardedImpressions) impressions")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Button("Reset ad counters") {
+                    AdManager.shared.resetInterstitialDiagnostics()
+                }
+            }
+
             #if DEBUG
             Section("DEBUG") {
                 Button("Reset NEMESIS trial + profile") {

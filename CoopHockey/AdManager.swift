@@ -66,6 +66,81 @@ final class AdManager: NSObject, ObservableObject {
         get { UserDefaults.standard.integer(forKey: "h.ad.rewImpressions") }
         set { UserDefaults.standard.set(newValue, forKey: "h.ad.rewImpressions") }
     }
+
+    /// Interstitial diagnostics. Same shape as the rewarded counters — same
+    /// reason: AdMob reports "requests" and "impressions" per unit but nothing
+    /// in between. When fill is high and impressions are zero we need to
+    /// separate "the trigger never fired" from "present() was called and
+    /// silently did nothing." Persisted so a crash or relaunch does not
+    /// erase the only trace of a failure the player will not see.
+    private(set) var interstitialPresentAttempts: Int {
+        get { UserDefaults.standard.integer(forKey: "h.ad.intAttempts") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.intAttempts") }
+    }
+    private(set) var interstitialPresentCalls: Int {
+        get { UserDefaults.standard.integer(forKey: "h.ad.intCalls") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.intCalls") }
+    }
+    private(set) var interstitialImpressions: Int {
+        get { UserDefaults.standard.integer(forKey: "h.ad.intImpressions") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.intImpressions") }
+    }
+    private(set) var interstitialPresentFailures: Int {
+        get { UserDefaults.standard.integer(forKey: "h.ad.intFailures") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.intFailures") }
+    }
+
+    /// Reasons `presentIfAllowed` returned early. Encoded as `[rawValue: count]`
+    /// in UserDefaults so the diagnostics row can show which gate is firing
+    /// most often — the single piece of information that would have made last
+    /// month's "zero impressions" investigation take an hour instead of weeks.
+    enum InterstitialSkipReason: String {
+        case adsDisabled, notActive, pacingRounds, pacingGap,
+             noPresenter, alreadyPresenting, noAd
+    }
+    private var interstitialSkipCounts: [String: Int] {
+        get { (UserDefaults.standard.dictionary(forKey: "h.ad.intSkips") as? [String: Int]) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.intSkips") }
+    }
+    private(set) var lastInterstitialSkipReason: String? {
+        get { UserDefaults.standard.string(forKey: "h.ad.intLastSkip") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.intLastSkip") }
+    }
+
+    /// One-line summary for the Settings diagnostics row — readable without
+    /// connecting Xcode, so it works for TestFlight builds and players.
+    var interstitialDiagnosticsSummary: String {
+        let skips = interstitialSkipCounts
+            .sorted { $0.value > $1.value }
+            .prefix(3)
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: ", ")
+        return """
+        Interstitial: \(interstitialPresentAttempts) attempts · \
+        \(interstitialPresentCalls) presented · \
+        \(interstitialImpressions) impressions · \
+        \(interstitialPresentFailures) failures
+        Last skip: \(lastInterstitialSkipReason ?? "—")
+        Top skips: \(skips.isEmpty ? "—" : skips)
+        """
+    }
+
+    func resetInterstitialDiagnostics() {
+        interstitialPresentAttempts = 0
+        interstitialPresentCalls = 0
+        interstitialImpressions = 0
+        interstitialPresentFailures = 0
+        interstitialSkipCounts = [:]
+        lastInterstitialSkipReason = nil
+    }
+
+    private func noteInterstitialSkip(_ reason: InterstitialSkipReason) {
+        var counts = interstitialSkipCounts
+        counts[reason.rawValue, default: 0] += 1
+        interstitialSkipCounts = counts
+        lastInterstitialSkipReason = reason.rawValue
+        print("[AdManager] interstitial skip: \(reason.rawValue)")
+    }
     private var rewardEarned = false
     private var rewardCompletion: ((RewardOutcome) -> Void)?
 
@@ -202,31 +277,48 @@ final class AdManager: NSObject, ObservableObject {
     // MARK: - Present
 
     func presentIfAllowed(completion: ((Bool) -> Void)? = nil) {
-        guard !adsDisabled else { completion?(false); return }
+        interstitialPresentAttempts += 1
+
+        guard !adsDisabled else {
+            noteInterstitialSkip(.adsDisabled)
+            completion?(false); return
+        }
         guard UIApplication.shared.applicationState == .active else {
+            noteInterstitialSkip(.notActive)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 self?.presentIfAllowed(completion: completion)
             }
             return
         }
-        guard roundsSinceLastAd >= minRoundsBetweenAds else { completion?(false); return }
+        guard roundsSinceLastAd >= minRoundsBetweenAds else {
+            noteInterstitialSkip(.pacingRounds)
+            completion?(false); return
+        }
         if let last = lastShown, Date().timeIntervalSince(last) < minGapSeconds {
+            noteInterstitialSkip(.pacingGap)
             completion?(false); return
         }
         guard let rootVC = Self.presenterVC() else {
+            noteInterstitialSkip(.noPresenter)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 self?.presentIfAllowed(completion: completion)
             }
             return
         }
         guard rootVC.presentedViewController == nil else {
+            noteInterstitialSkip(.alreadyPresenting)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 self?.presentIfAllowed(completion: completion)
             }
             return
         }
-        guard let ad = interstitial else { preload(); completion?(false); return }
+        guard let ad = interstitial else {
+            noteInterstitialSkip(.noAd)
+            preload(); completion?(false); return
+        }
 
+        interstitialPresentCalls += 1
+        print("[AdManager] interstitial present() called")
         ad.present(from: rootVC)
         lastShown = Date()
         roundsSinceLastAd = 0
@@ -293,7 +385,11 @@ extension AdManager: FullScreenContentDelegate {
     /// Without it there is no way to tell a presented-and-counted ad from one
     /// that appeared and silently didn't register.
     func adDidRecordImpression(_ ad: any FullScreenPresentingAd) {
-        if presentingRewarded { rewardedImpressions += 1 }
+        if presentingRewarded {
+            rewardedImpressions += 1
+        } else {
+            interstitialImpressions += 1
+        }
         print("[AdManager] ✅ impression recorded "
               + "(rewarded=\(presentingRewarded))")
     }
@@ -302,6 +398,11 @@ extension AdManager: FullScreenContentDelegate {
         // the AdMob report except for match rate, and going unlogged is how
         // 100%-filled rewarded ads served zero impressions unnoticed.
         print("[AdManager] ❌ present failed: \(error.localizedDescription)")
+
+        if !presentingRewarded {
+            interstitialPresentFailures += 1
+            lastInterstitialSkipReason = "presentFailed: \(error.localizedDescription)"
+        }
 
         if presentingRewarded {
             // The player never saw an ad, so telling them to "finish the ad"
