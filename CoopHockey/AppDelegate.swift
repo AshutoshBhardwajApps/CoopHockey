@@ -2,6 +2,7 @@ import UIKit
 import GoogleMobileAds
 import AVFAudio
 import AppTrackingTransparency
+import UserMessagingPlatform
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
 
@@ -43,6 +44,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // matters. Dropping it also removes a misleading ordering constraint
         // around MobileAds.start().
         MobileAds.shared.start()
+
+        // For returning users UMP has persisted consent from a previous
+        // session, so canRequestAds is already true and we can start
+        // preloading in parallel with the ATT/UMP flow below instead of
+        // waiting ~5s for them to finish. Single-slot preload wasted 94% of
+        // filled ads in production because the next game ended before the
+        // next ad arrived; kicking off this early load fills the buffer by
+        // the time the first round finishes.
+        //
+        // First-ever launches fall through to the normal path — UMP's own
+        // "no form required" case covers most non-EEA users, so they too
+        // get a buffered ad before the second round.
+        if ConsentInformation.shared.canRequestAds {
+            Task { @MainActor in
+                AdManager.shared.preload()
+                AdManager.shared.preloadRewarded()
+            }
+        }
 
         // ATT must be requested when the app is in the .active state. Calling
         // it from didFinishLaunching is too early — iOS silently no-ops the

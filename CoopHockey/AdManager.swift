@@ -17,7 +17,35 @@ final class AdManager: NSObject, ObservableObject {
     private let interstitialID = "ca-app-pub-2320635595451132/7068208518"
 
     private let minRoundsBetweenAds: Int = 1
-    private let minGapSeconds: TimeInterval = 0
+
+    /// Minimum seconds between two interstitials. AdMob and Unity Ads both
+    /// publish 60s as the lower bound they'll approve without flagging the
+    /// app for fatigue; below it short games can show two ads in under three
+    /// minutes, which is what review complaints and 1-star ratings call out.
+    private let minGapSeconds: TimeInterval = 60
+
+    /// Suppress interstitials for the first 60 seconds after the very first
+    /// launch, so a new player's first game never ends on an ad. First
+    /// impressions drive install retention far more than one lost
+    /// impression costs.
+    private let firstLaunchGraceSeconds: TimeInterval = 60
+
+    /// Skip interstitials for the first N completed games of a fresh install,
+    /// regardless of time elapsed, so a player who stayed on the home screen
+    /// a while still gets a clean first round.
+    private let firstLaunchGraceRounds: Int = 1
+
+    /// Buffer size for preloaded interstitials. Google's Next-Gen preloading
+    /// docs recommend two per preload ID: one to serve the current round,
+    /// one already warm for the next. Single-slot preloading left 94% of
+    /// filled ads unused in production (28/474 impressions over four weeks)
+    /// because the next game ended before the next ad finished loading.
+    private let interstitialBufferSize: Int = 2
+
+    /// Max age for a cached interstitial. Google expires them after about an
+    /// hour; dropping at 55 min ensures `present()` never fires on a stale
+    /// ad, which costs an impression and renders nothing.
+    private static let interstitialMaxAge: TimeInterval = 55 * 60
 
     /// Guarantee a Remove Ads promo every Nth completed game, bypassing the
     /// random odds and ad-pacing gates. Random promo rolls still happen on
@@ -39,10 +67,36 @@ final class AdManager: NSObject, ObservableObject {
     private var lastShown: Date?
     private var roundsSinceLastAd = 0
     private var gamesSincePromo = 0
-    private var interstitial: InterstitialAd?
+
+    /// Buffered interstitials, paired with the time each one finished
+    /// loading so `present()` can drop one that aged past `interstitialMaxAge`.
+    /// The buffer is drained from the front and refilled from the back.
+    private var interstitials: [(ad: InterstitialAd, loadedAt: Date)] = []
+    private var interstitialsInFlight: Int = 0
+
     private var rewarded: RewardedAd?
     private var rewardedLoading = false
     private var presentingRewarded = false
+
+    /// Date of the very first launch on this install, for the grace period.
+    /// Written once and never overwritten so uninstall/reinstall gets a fresh
+    /// grace window.
+    private var firstLaunchAt: Date {
+        if let stored = UserDefaults.standard.object(forKey: "h.ad.firstLaunchAt") as? Date {
+            return stored
+        }
+        let now = Date()
+        UserDefaults.standard.set(now, forKey: "h.ad.firstLaunchAt")
+        return now
+    }
+    private var completedGamesLifetime: Int {
+        get { UserDefaults.standard.integer(forKey: "h.ad.lifetimeRounds") }
+        set { UserDefaults.standard.set(newValue, forKey: "h.ad.lifetimeRounds") }
+    }
+    private var isInFirstLaunchGrace: Bool {
+        if completedGamesLifetime < firstLaunchGraceRounds { return true }
+        return Date().timeIntervalSince(firstLaunchAt) < firstLaunchGraceSeconds
+    }
 
     /// When the currently held rewarded ad finished loading. Google expires
     /// rewarded ads after roughly an hour; we discard at 50 minutes so a
@@ -96,7 +150,8 @@ final class AdManager: NSObject, ObservableObject {
     /// month's "zero impressions" investigation take an hour instead of weeks.
     enum InterstitialSkipReason: String {
         case adsDisabled, notActive, pacingRounds, pacingGap,
-             noPresenter, alreadyPresenting, noAd
+             noPresenter, alreadyPresenting, noAd,
+             firstLaunchGrace
     }
     private var interstitialSkipCounts: [String: Int] {
         get { (UserDefaults.standard.dictionary(forKey: "h.ad.intSkips") as? [String: Int]) ?? [:] }
@@ -160,7 +215,15 @@ final class AdManager: NSObject, ObservableObject {
     // MARK: - Preload
 
     func preload() {
-        guard !adsDisabled else { interstitial = nil; return }
+        guard !adsDisabled else { interstitials.removeAll(); return }
+        dropExpiredInterstitials()
+        let needed = interstitialBufferSize - interstitials.count - interstitialsInFlight
+        guard needed > 0 else { return }
+        for _ in 0..<needed { loadOneInterstitial() }
+    }
+
+    private func loadOneInterstitial() {
+        interstitialsInFlight += 1
         // The GMA SDK's completion is a @Sendable closure with no main-actor
         // guarantee, so everything that touches this actor's state hops back
         // explicitly. In practice the SDK calls back on main, but that's a
@@ -168,16 +231,25 @@ final class AdManager: NSObject, ObservableObject {
         // error under the Swift 6 language mode.
         InterstitialAd.load(with: interstitialID, request: Request()) { ad, error in
             Task { @MainActor in
+                self.interstitialsInFlight = max(0, self.interstitialsInFlight - 1)
                 guard !self.adsDisabled else { return }
                 if let ad {
                     ad.fullScreenContentDelegate = self
-                    self.interstitial = ad
-                    print("[AdManager] ✅ loaded")
+                    self.interstitials.append((ad, Date()))
+                    print("[AdManager] ✅ loaded (buffer \(self.interstitials.count)/\(self.interstitialBufferSize))")
                 } else {
                     print("[AdManager] ❌ load failed: \(error?.localizedDescription ?? "unknown") — retry in 10s")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self.preload() }
                 }
             }
+        }
+    }
+
+    private func dropExpiredInterstitials() {
+        let before = interstitials.count
+        interstitials.removeAll { Date().timeIntervalSince($0.loadedAt) > Self.interstitialMaxAge }
+        if interstitials.count != before {
+            print("[AdManager] dropped \(before - interstitials.count) expired interstitial(s)")
         }
     }
 
@@ -247,6 +319,7 @@ final class AdManager: NSObject, ObservableObject {
     // MARK: - Round tracking
 
     func noteRoundCompleted() {
+        completedGamesLifetime += 1
         guard !adsDisabled else { return }
         roundsSinceLastAd += 1
         gamesSincePromo += 1
@@ -258,8 +331,13 @@ final class AdManager: NSObject, ObservableObject {
     ///      ad-pacing gates so it always lands.
     ///   2. Random: ~1-in-12 chance on other game-end slots, still gated by
     ///      the normal ad pacing (rounds-between, gap, ads-not-disabled).
+    ///
+    /// The first-launch grace window suppresses promos too — a brand new
+    /// player should not be solicited for a Remove Ads purchase before
+    /// finishing their first game.
     func shouldShowPromoInsteadOfAd() -> Bool {
         guard !adsDisabled else { return false }
+        if isInFirstLaunchGrace { return false }
         if gamesSincePromo >= forcePromoEvery { return true }
         guard roundsSinceLastAd >= minRoundsBetweenAds else { return false }
         if let last = lastShown, Date().timeIntervalSince(last) < minGapSeconds { return false }
@@ -281,6 +359,14 @@ final class AdManager: NSObject, ObservableObject {
 
         guard !adsDisabled else {
             noteInterstitialSkip(.adsDisabled)
+            completion?(false); return
+        }
+        if isInFirstLaunchGrace {
+            noteInterstitialSkip(.firstLaunchGrace)
+            // Still keep the buffer warming so the moment the grace window
+            // ends, the next game can show an ad without another round of
+            // "noAd" skips.
+            preload()
             completion?(false); return
         }
         guard UIApplication.shared.applicationState == .active else {
@@ -312,17 +398,18 @@ final class AdManager: NSObject, ObservableObject {
             }
             return
         }
-        guard let ad = interstitial else {
+        dropExpiredInterstitials()
+        guard !interstitials.isEmpty else {
             noteInterstitialSkip(.noAd)
             preload(); completion?(false); return
         }
 
+        let next = interstitials.removeFirst()
         interstitialPresentCalls += 1
-        print("[AdManager] interstitial present() called")
-        ad.present(from: rootVC)
+        print("[AdManager] interstitial present() called (buffer now \(interstitials.count)/\(interstitialBufferSize))")
+        next.ad.present(from: rootVC)
         lastShown = Date()
         roundsSinceLastAd = 0
-        interstitial = nil
         preload()
         completion?(true)
     }
