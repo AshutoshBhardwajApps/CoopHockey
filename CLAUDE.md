@@ -12,6 +12,7 @@ For full setup / submission / rejection-recovery playbooks, see the template:
 - `iOSAppTemplate/SETUP.md` — new-project end-to-end
 - `iOSAppTemplate/PRE_SUBMISSION_CHECKLIST.md` — before every upload
 - `iOSAppTemplate/REJECTION_RECOVERY.md` — if Apple rejects
+- `iOSAppTemplate/ADS_INTEGRATION.md` — AdMob preload, pacing, grace, diagnostics (CoopHockey is the reference implementation this doc was distilled from)
 
 ## Architecture
 
